@@ -668,11 +668,13 @@ public class PluginCLI {
 
                     List<String> menuDecl = new ArrayList<>();
                     menuDecl.add("        Widget menu = Left.of(");
+                    menuDecl.add("                SidebarLogo.of(Icon.LAYER_GROUP, \"Ocean\"),");
+                    menuDecl.add("                SidebarCategory.of(\"Navigation\")" + (variables.isEmpty() ? "" : ","));
                     for (int v = 0; v < variables.size(); v++) {
                         String suffix = (v == variables.size() - 1) ? "" : ",";
                         menuDecl.add("                " + variables.get(v) + suffix);
                     }
-                    menuDecl.add("        );");
+                    menuDecl.add("        ).modifier(new io.jettra.flux.core.Modifier().cssClass(\"professional-left\"));");
                     menuDecl.add("");
 
                     newLines.addAll(insertPoint, menuDecl);
@@ -681,6 +683,17 @@ public class PluginCLI {
 
                 if (leftOfIndex != -1 && !variables.isEmpty()) {
                     int searchEndIndex = Math.min(leftOfIndex + 35, newLines.size());
+
+                    int insertIndex = leftOfIndex;
+                    boolean foundSidebarCategory = false;
+                    for (int i = leftOfIndex; i < searchEndIndex; i++) {
+                        if (newLines.get(i).contains("SidebarCategory.of")) {
+                            insertIndex = i;
+                            foundSidebarCategory = true;
+                            break;
+                        }
+                    }
+
                     for (String var : variables) {
                         boolean alreadyPresent = false;
                         for (int i = leftOfIndex; i < searchEndIndex; i++) {
@@ -691,16 +704,28 @@ public class PluginCLI {
                         }
 
                         if (!alreadyPresent) {
-                            String leftLine = newLines.get(leftOfIndex);
-                            String trimmed = leftLine.trim();
-                            if (trimmed.endsWith("Left.of(") || trimmed.endsWith("Left.of( ")) {
-                                String indent = "                ";
-                                if (leftLine.contains("Widget menu")) {
-                                    indent = leftLine.substring(0, leftLine.indexOf("Widget menu")) + "                ";
+                            if (foundSidebarCategory) {
+                                String scLine = newLines.get(insertIndex);
+                                if (!scLine.trim().endsWith(",")) {
+                                    newLines.set(insertIndex, scLine + ",");
                                 }
-                                newLines.add(leftOfIndex + 1, indent + var + ",");
+                                String indent = "                ";
+                                newLines.add(insertIndex + 1, indent + var + ",");
+                                insertIndex++;
+                                searchEndIndex++;
                             } else {
-                                newLines.set(leftOfIndex, leftLine.replace("Left.of(", "Left.of(" + var + ", "));
+                                String leftLine = newLines.get(leftOfIndex);
+                                String trimmed = leftLine.trim();
+                                if (trimmed.endsWith("Left.of(") || trimmed.endsWith("Left.of( ")) {
+                                    String indent = "                ";
+                                    if (leftLine.contains("Widget menu")) {
+                                        indent = leftLine.substring(0, leftLine.indexOf("Widget menu")) + "                ";
+                                    }
+                                    newLines.add(leftOfIndex + 1, indent + var + ",");
+                                    searchEndIndex++;
+                                } else {
+                                    newLines.set(leftOfIndex, leftLine.replace("Left.of(", "Left.of(" + var + ", "));
+                                }
                             }
                         }
                     }
