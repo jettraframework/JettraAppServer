@@ -173,8 +173,7 @@ public class PluginCLI {
                 descriptor.append("// Define WidgetLets here.\n");
             }
             descriptor.append("```\n");
-            Files.write(targetDir.resolve("plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
-            Files.write(targetDir.resolve("src/main/resources/plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
+
             
             // 3. Generate messages files
             String msgEn = "greeting=Hello from " + pluginName + "\n";
@@ -223,6 +222,7 @@ public class PluginCLI {
             }
 
             // Migration: Copy tests if includeTest is true
+            List<String> migratedTests = new ArrayList<>();
             if (includeTest) {
                 Path localTestSrc = Paths.get("src/test/java");
                 if (Files.exists(localTestSrc)) {
@@ -236,6 +236,7 @@ public class PluginCLI {
                                     Path dest = targetDir.resolve("src/test/java").resolve(relative);
                                     Files.createDirectories(dest.getParent());
                                     Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                                    migratedTests.add("src/test/java/" + relative.toString().replace('\\', '/'));
                                 } else {
                                     System.out.println("  [Excluded test class] " + relative);
                                 }
@@ -260,6 +261,17 @@ public class PluginCLI {
                     });
                 }
             }
+
+            if (!migratedTests.isEmpty()) {
+                descriptor.append("\n## Tests\n");
+                for (String tf : migratedTests) {
+                    descriptor.append(tf).append("\n");
+                }
+            }
+
+            Files.write(targetDir.resolve("plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
+            Files.write(targetDir.resolve("src/main/resources/plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
+
 
             // 4. Generate Java Page
             String javaCode = "package io.jettraflux." + pluginNameLower + ";\n\n" +
@@ -825,6 +837,44 @@ public class PluginCLI {
 
         // 2. Remove section and variables from TemplatePage.java
         removeFromTemplatePage(pluginName);
+
+        // 3. Remove test classes
+        removeTestsFromProject(pluginName);
+    }
+
+    private static void removeTestsFromProject(String pluginName) {
+        List<String> descLines = findAndReadPluginDescriptor(pluginName);
+        if (descLines.isEmpty()) {
+            return;
+        }
+        boolean inTests = false;
+        List<String> testFiles = new ArrayList<>();
+        for (String line : descLines) {
+            line = line.trim();
+            if (line.startsWith("## Tests")) {
+                inTests = true;
+                continue;
+            } else if (inTests && line.startsWith("## ")) {
+                inTests = false;
+            }
+            if (inTests && !line.isEmpty()) {
+                testFiles.add(line);
+            }
+        }
+        if (!testFiles.isEmpty()) {
+            System.out.println("Removing test classes associated with plugin: " + pluginName);
+            for (String tf : testFiles) {
+                Path p = Paths.get(tf);
+                if (Files.exists(p)) {
+                    try {
+                        Files.delete(p);
+                        System.out.println("  Deleted test file: " + p);
+                    } catch (IOException e) {
+                        System.err.println("  Failed to delete test file " + p + ": " + e.getMessage());
+                    }
+                }
+            }
+        }
     }
 
     private static void removeFromPomXml(String pluginName) {
