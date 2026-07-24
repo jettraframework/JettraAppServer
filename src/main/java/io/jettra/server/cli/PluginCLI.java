@@ -189,12 +189,6 @@ public class PluginCLI {
             descriptor.append("```\n");
 
             
-            // 3. Generate messages files
-            String msgEn = "greeting=Hello from " + pluginName + "\n";
-            String msgEs = "greeting=Hola desde " + pluginName + "\n";
-            Files.write(targetDir.resolve("src/main/resources/messages-" + pluginName + "_en.properties"), msgEn.getBytes(StandardCharsets.UTF_8));
-            Files.write(targetDir.resolve("src/main/resources/messages-" + pluginName + "_es.properties"), msgEs.getBytes(StandardCharsets.UTF_8));
-
             // Migration: Copy local src/main/java
             if (Files.exists(localSrc)) {
                 System.out.println("Migrating classes from current project...");
@@ -206,7 +200,10 @@ public class PluginCLI {
                             if (!isJavaFileExcluded(relative, file, excludePackages, excludeClasses)) {
                                 Path dest = targetDir.resolve("src/main/java").resolve(relative);
                                 Files.createDirectories(dest.getParent());
-                                Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                                String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                                content = content.replace("@InjectProperties(name = \"messages\")", "@InjectProperties(name = \"messages-" + pluginName + "\")")
+                                                 .replace("@InjectProperties(name=\"messages\")", "@InjectProperties(name=\"messages-" + pluginName + "\")");
+                                Files.write(dest, content.getBytes(StandardCharsets.UTF_8));
                             } else {
                                 System.out.println("  [Excluded class] " + relative);
                             }
@@ -226,6 +223,13 @@ public class PluginCLI {
                         String fileName = file.getFileName().toString();
                         if (!fileName.equals("jettra-config.properties") && !fileName.equals("jettra-rest.properties")) {
                             Path relative = localRes.relativize(file);
+                            
+                            // Rename messages properties
+                            if (fileName.startsWith("messages") && fileName.endsWith(".properties")) {
+                                String newFileName = fileName.replace("messages", "messages-" + pluginName);
+                                relative = relative.getParent() != null ? relative.getParent().resolve(newFileName) : Paths.get(newFileName);
+                            }
+                            
                             Path dest = targetDir.resolve("src/main/resources").resolve(relative);
                             Files.createDirectories(dest.getParent());
                             Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
