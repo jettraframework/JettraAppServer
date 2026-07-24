@@ -154,6 +154,8 @@ public class PluginCLI {
                     if (templatePageOpt.isPresent()) {
                         List<String> lines = Files.readAllLines(templatePageOpt.get(), StandardCharsets.UTF_8);
                         boolean inMenu = false;
+                        List<String> rawLines = new ArrayList<>();
+                        List<String> varNames = new ArrayList<>();
                         for (String line : lines) {
                             if (line.contains("WidgetLet") && !line.contains("import ")) {
                                 inMenu = true;
@@ -162,8 +164,20 @@ public class PluginCLI {
                                 break; // Stop extraction once we hit the menu creation
                             }
                             if (inMenu) {
-                                descriptor.append(line).append("\n");
+                                rawLines.add(line);
+                                java.util.regex.Matcher m = java.util.regex.Pattern.compile("WidgetLet\\s+(\\w+)\\s*=").matcher(line);
+                                if (m.find()) {
+                                    varNames.add(m.group(1));
+                                }
                             }
+                        }
+                        
+                        for (String line : rawLines) {
+                            String modifiedLine = line;
+                            for (String var : varNames) {
+                                modifiedLine = modifiedLine.replaceAll("\\b" + java.util.regex.Pattern.quote(var) + "\\b", var + pluginName);
+                            }
+                            descriptor.append(modifiedLine).append("\n");
                         }
                         extractedMenu = true;
                     }
