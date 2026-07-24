@@ -8,7 +8,7 @@ El comando `PluginCLI` facilita la creación, instalación y eliminación de plu
 
 ## El script `mvn-jettra`
 
-Para facilitar la ejecución de estas tareas y omitir verbosidad en la consola, se utiliza el script bash `mvn-jettra`.
+Para facilitar la ejecución de estas tareas y o     mitir verbosidad en la consola, se utiliza el script bash `mvn-jettra`.
 **Nota importante**: A partir de las últimas versiones, el motor `JettraServer` auto-generará de forma dinámica este script en el directorio raíz de la ejecución si el archivo no existe, inyectándole automáticamente los permisos requeridos (`chmod +x`). Simplemente arranca tu servidor Jettra local para tenerlo disponible.
 
 ```bash
