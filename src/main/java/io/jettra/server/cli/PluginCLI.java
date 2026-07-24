@@ -1017,6 +1017,33 @@ public class PluginCLI {
                         }
                     }
                 }
+
+
+                // Clean up any dangling trailing comma before the closing parenthesis
+                if (leftOfIndex != -1) {
+                    int endIndex = -1;
+                    int searchEndIndex = Math.min(leftOfIndex + 100, newLines.size());
+                    for (int i = leftOfIndex; i < searchEndIndex; i++) {
+                        String trimmed = newLines.get(i).trim();
+                        if (trimmed.startsWith(").modifier") || trimmed.equals(");") || trimmed.equals(")") || trimmed.startsWith(");") || trimmed.startsWith(")")) {
+                            endIndex = i;
+                            break;
+                        }
+                    }
+                    if (endIndex != -1) {
+                        for (int i = endIndex - 1; i >= leftOfIndex; i--) {
+                            String line = newLines.get(i);
+                            String trimmed = line.trim();
+                            if (!trimmed.isEmpty()) {
+                                if (trimmed.endsWith(",")) {
+                                    int commaIdx = line.lastIndexOf(',');
+                                    newLines.set(i, line.substring(0, commaIdx) + line.substring(commaIdx + 1));
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
             }
 
             Files.write(tp, newLines, StandardCharsets.UTF_8);
