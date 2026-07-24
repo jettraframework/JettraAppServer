@@ -682,18 +682,9 @@ public class PluginCLI {
                 }
 
                 if (leftOfIndex != -1 && !variables.isEmpty()) {
-                    int searchEndIndex = Math.min(leftOfIndex + 35, newLines.size());
+                    int searchEndIndex = Math.min(leftOfIndex + 100, newLines.size());
 
-                    int insertIndex = leftOfIndex;
-                    boolean foundSidebarCategory = false;
-                    for (int i = leftOfIndex; i < searchEndIndex; i++) {
-                        if (newLines.get(i).contains("SidebarCategory.of")) {
-                            insertIndex = i;
-                            foundSidebarCategory = true;
-                            break;
-                        }
-                    }
-
+                    List<String> varsToAdd = new ArrayList<>();
                     for (String var : variables) {
                         boolean alreadyPresent = false;
                         for (int i = leftOfIndex; i < searchEndIndex; i++) {
@@ -702,18 +693,38 @@ public class PluginCLI {
                                 break;
                             }
                         }
-
                         if (!alreadyPresent) {
-                            if (foundSidebarCategory) {
-                                String scLine = newLines.get(insertIndex);
-                                if (!scLine.trim().endsWith(",")) {
-                                    newLines.set(insertIndex, scLine + ",");
+                            varsToAdd.add(var);
+                        }
+                    }
+
+                    if (!varsToAdd.isEmpty()) {
+                        int endIndex = -1;
+                        for (int i = leftOfIndex; i < searchEndIndex; i++) {
+                            String trimmed = newLines.get(i).trim();
+                            if (trimmed.startsWith(").modifier") || trimmed.equals(");") || trimmed.equals(")") || trimmed.startsWith(");") || trimmed.startsWith(")")) {
+                                endIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (endIndex != -1) {
+                            if (endIndex > leftOfIndex) {
+                                String prevLine = newLines.get(endIndex - 1);
+                                String prevTrimmed = prevLine.trim();
+                                if (!prevTrimmed.isEmpty() && !prevTrimmed.endsWith("(") && !prevTrimmed.endsWith(",") && !prevLine.contains("Left.of(")) {
+                                    newLines.set(endIndex - 1, prevLine + ",");
                                 }
+                            }
+                            
+                            for (int v = 0; v < varsToAdd.size(); v++) {
+                                String var = varsToAdd.get(v);
+                                String suffix = (v == varsToAdd.size() - 1) ? "" : ",";
                                 String indent = "                ";
-                                newLines.add(insertIndex + 1, indent + var + ",");
-                                insertIndex++;
-                                searchEndIndex++;
-                            } else {
+                                newLines.add(endIndex + v, indent + var + suffix);
+                            }
+                        } else {
+                            for (String var : varsToAdd) {
                                 String leftLine = newLines.get(leftOfIndex);
                                 String trimmed = leftLine.trim();
                                 if (trimmed.endsWith("Left.of(") || trimmed.endsWith("Left.of( ")) {
@@ -722,7 +733,6 @@ public class PluginCLI {
                                         indent = leftLine.substring(0, leftLine.indexOf("Widget menu")) + "                ";
                                     }
                                     newLines.add(leftOfIndex + 1, indent + var + ",");
-                                    searchEndIndex++;
                                 } else {
                                     newLines.set(leftOfIndex, leftLine.replace("Left.of(", "Left.of(" + var + ", "));
                                 }
