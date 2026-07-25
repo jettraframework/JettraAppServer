@@ -201,6 +201,9 @@ public class PluginCLI {
                                 Path dest = targetDir.resolve("src/main/java").resolve(relative);
                                 Files.createDirectories(dest.getParent());
                                 String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                                content = Pattern.compile("@InjectProperties\\(\\s*name\\s*=\\s*\"messages(?![-\\w]*" + Pattern.quote(pluginName) + ")([^\"]*)\"\\s*\\)")
+                                                 .matcher(content)
+                                                 .replaceAll("@InjectProperties(name = \"messages-" + pluginName + "$1\")");
                                 content = content.replace("@InjectProperties(name = \"messages\")", "@InjectProperties(name = \"messages-" + pluginName + "\")")
                                                  .replace("@InjectProperties(name=\"messages\")", "@InjectProperties(name=\"messages-" + pluginName + "\")");
                                 Files.write(dest, content.getBytes(StandardCharsets.UTF_8));
@@ -237,6 +240,16 @@ public class PluginCLI {
                         return FileVisitResult.CONTINUE;
                     }
                 });
+            }
+
+            // Ensure generic messages.properties is removed and messages-<pluginName>.properties exists
+            Path genericMessages = targetDir.resolve("src/main/resources/messages.properties");
+            if (Files.exists(genericMessages)) {
+                Files.delete(genericMessages);
+            }
+            Path pluginMessages = targetDir.resolve("src/main/resources/messages-" + pluginName + ".properties");
+            if (!Files.exists(pluginMessages)) {
+                Files.write(pluginMessages, ("# Properties for plugin " + pluginName + "\ngreeting=Welcome\n").getBytes(StandardCharsets.UTF_8));
             }
 
             // Migration: Copy tests if includeTest is true
