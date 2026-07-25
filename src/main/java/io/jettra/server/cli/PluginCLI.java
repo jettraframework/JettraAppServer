@@ -740,10 +740,16 @@ public class PluginCLI {
 
                         if (endIndex != -1) {
                             if (endIndex > leftOfIndex) {
-                                String prevLine = newLines.get(endIndex - 1);
-                                String prevTrimmed = prevLine.trim();
-                                if (!prevTrimmed.isEmpty() && !prevTrimmed.endsWith("(") && !prevTrimmed.endsWith(",") && !prevLine.contains("Left.of(")) {
-                                    newLines.set(endIndex - 1, prevLine + ",");
+                                int lastCodeIndex = endIndex - 1;
+                                while (lastCodeIndex > leftOfIndex && newLines.get(lastCodeIndex).trim().isEmpty()) {
+                                    lastCodeIndex--;
+                                }
+                                if (lastCodeIndex >= leftOfIndex) {
+                                    String prevLine = newLines.get(lastCodeIndex);
+                                    String prevTrimmed = prevLine.trim();
+                                    if (!prevTrimmed.isEmpty() && !prevTrimmed.endsWith("(") && !prevTrimmed.endsWith(",") && !prevLine.contains("Left.of(")) {
+                                        newLines.set(lastCodeIndex, prevLine + ",");
+                                    }
                                 }
                             }
                             
