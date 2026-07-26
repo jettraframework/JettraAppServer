@@ -33,7 +33,7 @@ Este se ejecuta desde consola como por ejemplo
 -name: Nombre del plugin 
 exclude-package: Excluye de la generación todos los documentos dentro de los paquetes especificados.
 exclude-class: Excluye clases especificas que no se desean migrar
-incluye-test: Indica que se pasarán también los test al plugin. Valores son yes|no
+includes-test: Indica que se pasarán también los test al plugin. Valores son yes|no
 
 
 
@@ -45,19 +45,19 @@ Existen múltiples maneras de generar una estructura de proyecto para tu nuevo p
 ```
 Ejemplo con exclusión de paquetes, clases e inclusión de tests:
 ```bash
-./mvn-jettra generate-plugin -path /home/avbravo/Descargas -name MiNuevoPlugin exclude-plugin plugin1,plugin2 exclude-package com.avbravo.general, com.avbravo.prueba exclude-class Clase1.java, Clase2.java incluye-test yes
+./mvn-jettra generate-plugin -path /home/avbravo/Descargas -name MiNuevoPlugin exclude-plugin plugin1,plugin2 exclude-package com.avbravo.general, com.avbravo.prueba exclude-class Clase1.java, Clase2.java includes-test yes
 ```
 
 **Parámetros Opcionales de Generación:**
 - `exclude-plugin`: Excluye plugins específicos de la generación.
 - `exclude-package`: Excluye de la migración todos los documentos dentro de los paquetes especificados (ej: `com.avbravo.general, com.avbravo.prueba`).
 - `exclude-class`: Excluye clases específicas que no se desean migrar (ej: `Clase1.java, Clase2.java`).
-- `incluye-test`: Indica si se copiarán también las clases y recursos de pruebas (`src/test/java` y `src/test/resources`) al nuevo plugin. Valores permitidos: `yes` | `no`.
+- `includes-test`: Indica si se copiarán también las clases y recursos de pruebas (`src/test/java` y `src/test/resources`) al nuevo plugin. Valores permitidos: `yes` | `no`.
 
 **Sintaxis Simplificada (Directorio Actual):**
 Si omites `-path`, el generador construirá el plugin en el directorio donde te encuentres ubicado:
 ```bash
-./mvn-jettra generate-plugin ReportesPlugin exclude-plugin VentasPlugin,InventarioPlugin exclude-package com.avbravo.general exclude-class Clase1.java incluye-test yes
+./mvn-jettra generate-plugin ReportesPlugin exclude-plugin VentasPlugin,InventarioPlugin exclude-package com.avbravo.general exclude-class Clase1.java includes-test yes
 ```
 
 #### **¿Qué hace `generate-plugin` bajo el capó?**
@@ -152,6 +152,14 @@ Ejemplo:
 1. **Descarga de Especificación JSON**: Obtiene el descriptor `<nombre-plugin>.json` desde `https://github.com/avbravo/jettrahub`.
 2. **Inyección de Repositorio**: Verifica si el repositorio definido en `"repository": { "id": "...", "url": "..." }` existe en tu `pom.xml`. Si no existe, lo inyecta automáticamente bajo la sección `<repositories>`.
 3. **Inyección y Actualización de Dependencia**: Lee la sección `"dependency": { "groupId": "...", "artifactId": "...", "version": "..." }`. Si la dependencia no existe en `pom.xml`, la añade. Si existe, evalúa si la versión en JSON es más reciente y actualiza la etiqueta `<version>` de forma automática.
+
+### 6. Mostrar Ayuda de Comandos (`help`)
+
+Muestra en la consola la lista de comandos disponibles y su sintaxis de uso:
+
+```bash
+./mvn-jettra help
+```
 
 ---
 

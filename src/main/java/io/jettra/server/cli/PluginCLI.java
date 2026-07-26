@@ -11,14 +11,17 @@ public class PluginCLI {
 
     public static void main(String[] args) {
         if (args.length == 0) {
-            System.out.println("Usage: mvn -jettra <command> <plugin-name> [options]");
+            showHelp();
             return;
         }
 
         List<String> argList = new ArrayList<>(Arrays.asList(args));
         argList.removeIf(a -> a.equals("-jettra"));
         
-        if (argList.isEmpty()) return;
+        if (argList.isEmpty()) {
+            showHelp();
+            return;
+        }
 
         String command = argList.get(0);
         String pluginName = null;
@@ -44,7 +47,8 @@ public class PluginCLI {
             } else if ("exclude-class".equalsIgnoreCase(arg) || "-exclude-class".equalsIgnoreCase(arg)) {
                 List<String> tokens = collectOptionTokens(argList, i + 1);
                 excludeClasses.addAll(parseCommaOrSpaceSeparatedList(tokens));
-            } else if ("incluye-test".equalsIgnoreCase(arg) || "-incluye-test".equalsIgnoreCase(arg) ||
+            } else if ("includes-test".equalsIgnoreCase(arg) || "-includes-test".equalsIgnoreCase(arg) ||
+                       "incluye-test".equalsIgnoreCase(arg) || "-incluye-test".equalsIgnoreCase(arg) ||
                        "include-test".equalsIgnoreCase(arg) || "-include-test".equalsIgnoreCase(arg)) {
                 if (nextArg != null && !isKnownOptionKey(nextArg)) {
                     String val = nextArg.trim().toLowerCase();
@@ -64,12 +68,14 @@ public class PluginCLI {
             pathStr = ".";
         }
 
-        if (pluginName == null && !"list-plugin".equalsIgnoreCase(command)) {
+        if (pluginName == null && !isNoPluginNameRequiredCommand(command)) {
             System.out.println("Plugin name is required.");
+            System.out.println();
+            showHelp();
             return;
         }
 
-        switch (command) {
+        switch (command.toLowerCase()) {
             case "generate-plugin":
                 generatePlugin(pathStr, pluginName, excludePlugins, excludePackages, excludeClasses, includeTest);
                 break;
@@ -85,9 +91,65 @@ public class PluginCLI {
             case "get-plugin":
                 getPlugin(pluginName);
                 break;
+            case "help":
+            case "-help":
+            case "--help":
+            case "-h":
+                showHelp();
+                break;
             default:
                 System.out.println("Unknown command: " + command);
+                System.out.println();
+                showHelp();
         }
+    }
+
+    private static boolean isNoPluginNameRequiredCommand(String command) {
+        if (command == null) return false;
+        String cmd = command.toLowerCase();
+        return cmd.equals("list-plugin") || cmd.equals("help") || cmd.equals("-help") || cmd.equals("--help") || cmd.equals("-h");
+    }
+
+    private static void showHelp() {
+        System.out.println("Jettra Plugin CLI - Menú de Ayuda");
+        System.out.println("Uso: ./mvn-jettra <comando> [parámetros/opciones]");
+        System.out.println("====================================================================================================");
+        System.out.println("Comandos disponibles:\n");
+        
+        System.out.println("  generate-plugin  Genera la estructura autónoma de un nuevo plugin a partir del proyecto actual o desde cero.");
+        System.out.println("                   Sintaxis recomendada: ./mvn-jettra generate-plugin -path <directorio> -name <NombrePlugin> [opciones]");
+        System.out.println("                   Sintaxis simplificada: ./mvn-jettra generate-plugin <NombrePlugin> [opciones]");
+        System.out.println("                   Parámetros y Opciones:");
+        System.out.println("                     -path <directorio>            Ruta del directorio destino (por defecto: directorio actual).");
+        System.out.println("                     -name <NombrePlugin>          Nombre del plugin a generar.");
+        System.out.println("                     exclude-plugin <p1,p2...>     Excluye plugins específicos durante la generación.");
+        System.out.println("                     exclude-package <pkg1,pkg2...> Excluye todos los archivos en los paquetes indicados.");
+        System.out.println("                     exclude-class <c1,c2...>      Excluye clases Java específicas (ej: Clase1.java, Clase2.java).");
+        System.out.println("                     includes-test yes|no          Indica si se deben migrar las pruebas unitarias y de integración (yes|no).");
+        System.out.println("                   Ejemplos:");
+        System.out.println("                     ./mvn-jettra generate-plugin -path /home/usuario/Descargas -name MiNuevoPlugin exclude-package com.ejemplo.general exclude-class Clase1.java includes-test yes");
+        System.out.println("                     ./mvn-jettra generate-plugin ReportesPlugin exclude-plugin VentasPlugin includes-test yes\n");
+
+        System.out.println("  install-plugin   Instala un plugin en el proyecto actual (inyecta dependencia en pom.xml y menú en TemplatePage.java).");
+        System.out.println("                   Sintaxis: ./mvn-jettra install-plugin <NombrePlugin|Ruta>");
+        System.out.println("                   Ejemplos:");
+        System.out.println("                     ./mvn-jettra install-plugin ReportesPlugin");
+        System.out.println("                     ./mvn-jettra install-plugin /ruta/absoluta/a/ReportesPlugin\n");
+
+        System.out.println("  remove-plugin    Remueve la configuración y dependencias de un plugin previamente instalado.");
+        System.out.println("                   Sintaxis: ./mvn-jettra remove-plugin <NombrePlugin>");
+        System.out.println("                   Ejemplo: ./mvn-jettra remove-plugin ReportesPlugin\n");
+
+        System.out.println("  list-plugin      Lista los plugins disponibles públicamente en el repositorio central JettraHub.");
+        System.out.println("                   Sintaxis: ./mvn-jettra list-plugin\n");
+
+        System.out.println("  get-plugin       Obtiene la especificación de un plugin desde JettraHub y actualiza el pom.xml con su repositorio y dependencia.");
+        System.out.println("                   Sintaxis: ./mvn-jettra get-plugin <NombrePlugin>");
+        System.out.println("                   Ejemplo: ./mvn-jettra get-plugin JettraPluginExample\n");
+
+        System.out.println("  help             Muestra este menú de ayuda detallado.");
+        System.out.println("                   Sintaxis: ./mvn-jettra help");
+        System.out.println("====================================================================================================");
     }
 
     private static void generatePlugin(String pathStr, String pluginName, String excludePlugins,
@@ -1114,6 +1176,7 @@ public class PluginCLI {
                t.equals("exclude-plugin") || t.equals("-exclude-plugin") ||
                t.equals("exclude-package") || t.equals("-exclude-package") ||
                t.equals("exclude-class") || t.equals("-exclude-class") ||
+               t.equals("includes-test") || t.equals("-includes-test") ||
                t.equals("incluye-test") || t.equals("-incluye-test") ||
                t.equals("include-test") || t.equals("-include-test");
     }
