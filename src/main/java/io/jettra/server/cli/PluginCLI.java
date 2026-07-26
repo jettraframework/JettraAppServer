@@ -64,7 +64,7 @@ public class PluginCLI {
             pathStr = ".";
         }
 
-        if (pluginName == null) {
+        if (pluginName == null && !"list-plugin".equalsIgnoreCase(command)) {
             System.out.println("Plugin name is required.");
             return;
         }
@@ -78,6 +78,12 @@ public class PluginCLI {
                 break;
             case "remove-plugin":
                 removePlugin(pluginName);
+                break;
+            case "list-plugin":
+                listPlugins();
+                break;
+            case "get-plugin":
+                getPlugin(pluginName);
                 break;
             default:
                 System.out.println("Unknown command: " + command);
@@ -1156,6 +1162,262 @@ public class PluginCLI {
             }
         }
 
+        return false;
+    }
+
+    private static String fetchUrlContent(String urlStr) {
+        try {
+            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
+                    .followRedirects(java.net.http.HttpClient.Redirect.ALWAYS)
+                    .build();
+            java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                    .uri(java.net.URI.create(urlStr))
+                    .GET()
+                    .build();
+            java.net.http.HttpResponse<String> response = client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            if (response.statusCode() == 200) {
+                return response.body();
+            }
+        } catch (Exception e) {
+            // Ignore HTTP errors for fallback
+        }
+        return null;
+    }
+
+    private static String fetchGitHubFile(String relativePath) {
+        String mainUrl = "https://raw.githubusercontent.com/avbravo/jettrahub/main/" + relativePath;
+        String content = fetchUrlContent(mainUrl);
+        if (content == null) {
+            String masterUrl = "https://raw.githubusercontent.com/avbravo/jettrahub/master/" + relativePath;
+            content = fetchUrlContent(masterUrl);
+        }
+        return content;
+    }
+
+    private static void listPlugins() {
+        System.out.println("Connecting to https://github.com/avbravo/jettrahub ...");
+        String markdown = fetchGitHubFile("README.md");
+        if (markdown == null || markdown.isBlank()) {
+            System.err.println("Could not fetch README.md from https://github.com/avbravo/jettrahub");
+            return;
+        }
+
+        String[] lines = markdown.split("\\r?\\n");
+        List<String[]> tableRows = new ArrayList<>();
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+                if (trimmed.matches("^\\|[\\s\\-:\\|]+\\|$")) {
+                    continue; // Skip markdown separator row |---|---|
+                }
+                String[] parts = trimmed.split("\\|");
+                List<String> cells = new ArrayList<>();
+                for (String part : parts) {
+                    cells.add(part.trim());
+                }
+                if (!cells.isEmpty() && cells.get(0).isEmpty()) {
+                    cells.remove(0);
+                }
+                if (!cells.isEmpty() && cells.get(cells.size() - 1).isEmpty()) {
+                    cells.remove(cells.size() - 1);
+                }
+                if (cells.size() >= 4) {
+                    tableRows.add(cells.toArray(new String[0]));
+                }
+            }
+        }
+
+        if (tableRows.isEmpty()) {
+            System.out.println("No plugin table found in README.md");
+            return;
+        }
+
+        System.out.println("\nAvailable Plugins (JettraHub):");
+        System.out.println("====================================================================================================");
+
+        int count = 0;
+        for (String[] row : tableRows) {
+            String col0 = row.length > 0 ? row[0] : "";
+            String col1 = row.length > 1 ? row[1] : "";
+            String col2 = row.length > 2 ? row[2] : "";
+            String col3 = row.length > 3 ? row[3] : "";
+            String col4 = row.length > 4 ? row[4] : "";
+
+            if (col0.equalsIgnoreCase("#") || col1.equalsIgnoreCase("Plugin")) {
+                continue; // Skip header row
+            }
+            if (col1.isBlank()) {
+                continue; // Skip empty rows
+            }
+
+            // Clean markdown links e.g. [url](url) -> url
+            if (col3.startsWith("[") && col3.contains("](") && col3.endsWith(")")) {
+                int start = col3.indexOf("](");
+                col3 = col3.substring(start + 2, col3.length() - 1);
+            }
+
+            count++;
+            System.out.println("  " + col0 + ". " + col1);
+            if (!col2.isBlank()) System.out.println("     Descripción : " + col2);
+            if (!col3.isBlank()) System.out.println("     URL         : " + col3);
+            if (!col4.isBlank()) System.out.println("     Autor       : " + col4);
+            System.out.println("----------------------------------------------------------------------------------------------------");
+        }
+
+        if (count == 0) {
+            System.out.println("No plugins available.");
+        }
+        System.out.println();
+    }
+
+    private static void getPlugin(String pluginName) {
+        System.out.println("Fetching plugin configuration for '" + pluginName + "' from https://github.com/avbravo/jettrahub ...");
+        String jsonContent = fetchGitHubFile(pluginName + ".json");
+        if (jsonContent == null || jsonContent.isBlank()) {
+            System.err.println("Could not fetch plugin definition '" + pluginName + ".json' from https://github.com/avbravo/jettrahub");
+            return;
+        }
+
+        Path localPom = Paths.get("pom.xml");
+        if (!Files.exists(localPom)) {
+            System.err.println("No pom.xml found in current directory.");
+            return;
+        }
+
+        try {
+            String pomContent = new String(Files.readAllBytes(localPom), StandardCharsets.UTF_8);
+
+            // Parse repository
+            String repoObj = extractJsonObject(jsonContent, "repository");
+            if (repoObj != null) {
+                String repoId = extractJsonField(repoObj, "id");
+                String repoUrl = extractJsonField(repoObj, "url");
+
+                if (repoId != null && repoUrl != null) {
+                    boolean repoExists = pomContent.contains("<id>" + repoId + "</id>") || pomContent.contains("<url>" + repoUrl + "</url>");
+                    if (!repoExists) {
+                        String repoXml = "        <repository>\n" +
+                                         "            <id>" + repoId + "</id>\n" +
+                                         "            <url>" + repoUrl + "</url>\n" +
+                                         "        </repository>\n";
+                        if (pomContent.contains("</repositories>")) {
+                            pomContent = pomContent.replaceFirst("</repositories>", repoXml + "    </repositories>");
+                        } else if (pomContent.contains("<dependencies>")) {
+                            String reposXml = "    <repositories>\n" + repoXml + "    </repositories>\n\n";
+                            pomContent = pomContent.replaceFirst("<dependencies>", reposXml + "    <dependencies>");
+                        } else {
+                            String reposXml = "    <repositories>\n" + repoXml + "    </repositories>\n";
+                            pomContent = pomContent.replaceFirst("</project>", reposXml + "</project>");
+                        }
+                        System.out.println("Added repository '" + repoId + "' (" + repoUrl + ") to pom.xml.");
+                    } else {
+                        System.out.println("Repository '" + repoId + "' already exists in pom.xml.");
+                    }
+                }
+            }
+
+            // Parse dependency
+            String depObj = extractJsonObject(jsonContent, "dependency");
+            if (depObj != null) {
+                String groupId = extractJsonField(depObj, "groupId");
+                String artifactId = extractJsonField(depObj, "artifactId");
+                String newVersion = extractJsonField(depObj, "version");
+
+                if (groupId != null && artifactId != null && newVersion != null) {
+                    Pattern depPattern = Pattern.compile("(?s)<dependency>\\s*<groupId>\\s*" + Pattern.quote(groupId) + "\\s*</groupId>\\s*<artifactId>\\s*" + Pattern.quote(artifactId) + "\\s*</artifactId>\\s*<version>\\s*(.*?)\\s*</version>\\s*</dependency>");
+                    Matcher depMatcher = depPattern.matcher(pomContent);
+
+                    if (depMatcher.find()) {
+                        String currentVersion = depMatcher.group(1).trim();
+                        if (isNewerVersion(newVersion, currentVersion)) {
+                            String updatedDep = "<dependency>\n            <groupId>" + groupId + "</groupId>\n            <artifactId>" + artifactId + "</artifactId>\n            <version>" + newVersion + "</version>\n        </dependency>";
+                            pomContent = depMatcher.replaceFirst(Matcher.quoteReplacement(updatedDep));
+                            System.out.println("Updated dependency '" + groupId + ":" + artifactId + "' version from '" + currentVersion + "' to '" + newVersion + "' in pom.xml.");
+                        } else {
+                            System.out.println("Dependency '" + groupId + ":" + artifactId + "' version '" + currentVersion + "' is up to date (JSON version: '" + newVersion + "').");
+                        }
+                    } else {
+                        String depXml = "        <dependency>\n" +
+                                        "            <groupId>" + groupId + "</groupId>\n" +
+                                        "            <artifactId>" + artifactId + "</artifactId>\n" +
+                                        "            <version>" + newVersion + "</version>\n" +
+                                        "        </dependency>\n";
+                        if (pomContent.contains("</dependencies>")) {
+                            pomContent = pomContent.replaceFirst("</dependencies>", depXml + "    </dependencies>");
+                        } else {
+                            String depsXml = "    <dependencies>\n" + depXml + "    </dependencies>\n";
+                            pomContent = pomContent.replaceFirst("</project>", depsXml + "</project>");
+                        }
+                        System.out.println("Added dependency '" + groupId + ":" + artifactId + ":" + newVersion + "' to pom.xml.");
+                    }
+                }
+            }
+
+            Files.write(localPom, pomContent.getBytes(StandardCharsets.UTF_8));
+            System.out.println("pom.xml updated successfully for plugin '" + pluginName + "'.");
+
+        } catch (Exception e) {
+            System.err.println("Error updating pom.xml: " + e.getMessage());
+        }
+    }
+
+    private static String extractJsonField(String json, String fieldName) {
+        if (json == null) return null;
+        Pattern p = Pattern.compile("\"" + Pattern.quote(fieldName) + "\"\\s*:\\s*\"?([^\",\\}\\s]+)\"?");
+        Matcher m = p.matcher(json);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return null;
+    }
+
+    private static String extractJsonObject(String json, String objectName) {
+        if (json == null) return null;
+        Pattern p = Pattern.compile("\"" + Pattern.quote(objectName) + "\"\\s*:\\s*(\\{[^\\}]*\\})");
+        Matcher m = p.matcher(json);
+        if (m.find()) {
+            return m.group(1);
+        }
+        return null;
+    }
+
+    private static boolean isNewerVersion(String vNew, String vCurrent) {
+        if (vNew == null || vNew.isBlank()) return false;
+        if (vCurrent == null || vCurrent.isBlank()) return true;
+        if (vNew.trim().equalsIgnoreCase(vCurrent.trim())) return false;
+
+        String cleanNew = vNew.trim().replaceAll("^v", "");
+        String cleanCurr = vCurrent.trim().replaceAll("^v", "");
+
+        String[] partsNew = cleanNew.split("[-.]");
+        String[] partsCurr = cleanCurr.split("[-.]");
+
+        int maxLen = Math.max(partsNew.length, partsCurr.length);
+        for (int i = 0; i < maxLen; i++) {
+            String pNew = i < partsNew.length ? partsNew[i] : "0";
+            String pCurr = i < partsCurr.length ? partsCurr[i] : "0";
+
+            boolean isNumNew = pNew.matches("\\d+");
+            boolean isNumCurr = pCurr.matches("\\d+");
+
+            if (isNumNew && isNumCurr) {
+                long numNew = Long.parseLong(pNew);
+                long numCurr = Long.parseLong(pCurr);
+                if (numNew > numCurr) return true;
+                if (numNew < numCurr) return false;
+            } else {
+                if (pNew.equalsIgnoreCase("SNAPSHOT") && !pCurr.equalsIgnoreCase("SNAPSHOT")) {
+                    return false;
+                }
+                if (!pNew.equalsIgnoreCase("SNAPSHOT") && pCurr.equalsIgnoreCase("SNAPSHOT")) {
+                    return true;
+                }
+                int comp = pNew.compareToIgnoreCase(pCurr);
+                if (comp > 0) return true;
+                if (comp < 0) return false;
+            }
+        }
         return false;
     }
 }

@@ -123,6 +123,36 @@ Ejemplo:
    ```
    Y remueve automáticamente las variables de menú vinculadas de la invocación `Left.of(...)` en `TemplatePage.java`.
 
+### 4. Listar Plugins Disponibles
+
+Muestra la lista de plugins disponibles en el repositorio central JettraHub (`https://github.com/avbravo/jettrahub`):
+
+```bash
+./mvn-jettra list-plugin
+```
+
+#### **¿Qué hace `list-plugin` bajo el capó?**
+- Se conecta vía HTTP a `https://github.com/avbravo/jettrahub` y descarga el archivo `README.md`.
+- Lee y parsea la tabla Markdown con la estructura `| # | Plugin | Descripción | URL | Autor |`.
+- Presenta el resultado formateado como una lista limpia e interactiva en la consola.
+
+### 5. Obtener un Plugin (`get-plugin`)
+
+Obtiene las especificaciones de un plugin desde JettraHub y actualiza automáticamente el archivo `pom.xml` de tu proyecto:
+
+```bash
+./mvn-jettra get-plugin <nombre-plugin>
+```
+Ejemplo:
+```bash
+./mvn-jettra get-plugin JettraPluginExample
+```
+
+#### **¿Qué hace `get-plugin` bajo el capó?**
+1. **Descarga de Especificación JSON**: Obtiene el descriptor `<nombre-plugin>.json` desde `https://github.com/avbravo/jettrahub`.
+2. **Inyección de Repositorio**: Verifica si el repositorio definido en `"repository": { "id": "...", "url": "..." }` existe en tu `pom.xml`. Si no existe, lo inyecta automáticamente bajo la sección `<repositories>`.
+3. **Inyección y Actualización de Dependencia**: Lee la sección `"dependency": { "groupId": "...", "artifactId": "...", "version": "..." }`. Si la dependencia no existe en `pom.xml`, la añade. Si existe, evalúa si la versión en JSON es más reciente y actualiza la etiqueta `<version>` de forma automática.
+
 ---
 
 ## Ejemplo de Configuración en `.m2/settings.xml`
