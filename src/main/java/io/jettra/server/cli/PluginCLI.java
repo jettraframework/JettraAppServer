@@ -168,6 +168,9 @@ public class PluginCLI {
         }
         System.out.println("Includes test: " + (includeTest ? "yes" : "no"));
 
+        final Set<String> pageRoles = new LinkedHashSet<>();
+        final Set<String> actionRoles = new LinkedHashSet<>();
+
         try {
             if (Files.exists(targetDir)) {
                 System.err.println("Target directory " + targetDir.toString() + " already exists!");
@@ -269,6 +272,8 @@ public class PluginCLI {
                                 Path dest = targetDir.resolve("src/main/java").resolve(relative);
                                 Files.createDirectories(dest.getParent());
                                 String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                                extractRoles(content, "@PageWidgetAllow", pageRoles);
+                                extractRoles(content, "@ActionWidgetAllow", actionRoles);
                                 content = Pattern.compile("@InjectProperties\\(\\s*name\\s*=\\s*\"messages(?![-\\w]*" + Pattern.quote(pluginName) + ")([^\"]*)\"\\s*\\)")
                                                  .matcher(content)
                                                  .replaceAll("@InjectProperties(name = \"messages-" + pluginName + "$1\")");
@@ -366,6 +371,20 @@ public class PluginCLI {
                 }
             }
 
+            if (!pageRoles.isEmpty()) {
+                descriptor.append("\n## PageWidgetAll\n");
+                for (String role : pageRoles) {
+                    descriptor.append("role-plugin: ").append(role).append(",   change-for:").append(role).append("\n");
+                }
+            }
+
+            if (!actionRoles.isEmpty()) {
+                descriptor.append("\n## ActionWidgetAllow\n");
+                for (String role : actionRoles) {
+                    descriptor.append("role-plugin: ").append(role).append(",   change-for:").append(role).append("\n");
+                }
+            }
+
             Files.write(targetDir.resolve("plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
             Files.write(targetDir.resolve("src/main/resources/plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
 
@@ -396,6 +415,26 @@ public class PluginCLI {
 
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private static void extractRoles(String content, String annotationName, Set<String> roles) {
+        Pattern p = Pattern.compile(annotationName + "\\s*\\([^)]*role\\s*=\\s*(?:\\{([^}]+)\\}|\"([^\"]+)\")");
+        Matcher m = p.matcher(content);
+        while (m.find()) {
+            String roleGroup = m.group(1);
+            if (roleGroup == null) {
+                roleGroup = m.group(2);
+            }
+            if (roleGroup != null) {
+                String[] parts = roleGroup.split(",");
+                for (String part : parts) {
+                    part = part.trim().replace("\"", "");
+                    if (!part.isEmpty()) {
+                        roles.add(part);
+                    }
+                }
+            }
         }
     }
 
