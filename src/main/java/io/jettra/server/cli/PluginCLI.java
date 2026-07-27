@@ -315,10 +315,8 @@ public class PluginCLI {
             if (Files.exists(genericMessages)) {
                 Files.delete(genericMessages);
             }
-            Path pluginMessages = targetDir.resolve("src/main/resources/messages-" + pluginName + ".properties");
-            if (!Files.exists(pluginMessages)) {
-                Files.write(pluginMessages, ("# Properties for plugin " + pluginName + "\ngreeting=Welcome\n").getBytes(StandardCharsets.UTF_8));
-            }
+            // We no longer unconditionally create messages-<pluginName>.properties
+            // as it should only exist if the original project had messages.properties.
 
             // Migration: Copy tests if includeTest is true
             List<String> migratedTests = new ArrayList<>();
