@@ -373,16 +373,12 @@ public class PluginCLI {
 
             if (!pageRoles.isEmpty()) {
                 descriptor.append("\n## PageWidgetAll\n");
-                for (String role : pageRoles) {
-                    descriptor.append("role-plugin: ").append(role).append(",   change-for:").append(role).append("\n");
-                }
+                descriptor.append("role: ").append(String.join(",", pageRoles)).append("\n");
             }
 
             if (!actionRoles.isEmpty()) {
                 descriptor.append("\n## ActionWidgetAllow\n");
-                for (String role : actionRoles) {
-                    descriptor.append("role-plugin: ").append(role).append(",   change-for:").append(role).append("\n");
-                }
+                descriptor.append("role: ").append(String.join(",", actionRoles)).append("\n");
             }
 
             Files.write(targetDir.resolve("plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
