@@ -254,6 +254,7 @@ public class PluginCLI {
                             for (String var : varNames) {
                                 modifiedLine = modifiedLine.replaceAll("\\b" + java.util.regex.Pattern.quote(var) + "\\b", var + pluginName);
                             }
+                            modifiedLine = transformResolvePathInContent(modifiedLine, pluginNameLower);
                             descriptor.append(modifiedLine).append("\n");
                         }
                         extractedMenu = true;
@@ -281,6 +282,8 @@ public class PluginCLI {
                                 extractRoles(content, "@PageWidgetAllow", pageRoles);
                                 extractRoles(content, "@ActionWidgetAllow", actionRoles);
                                 content = transformAppRolesInContent(content, pluginNameLower);
+                                content = transformPagePathInContent(content, pluginNameLower);
+                                content = transformResolvePathInContent(content, pluginNameLower);
                                 content = Pattern.compile("@InjectProperties\\(\\s*name\\s*=\\s*\"messages(?![-\\w]*" + Pattern.quote(pluginName) + ")([^\"]*)\"\\s*\\)")
                                                  .matcher(content)
                                                  .replaceAll("@InjectProperties(name = \"messages-" + pluginName + "$1\")");
@@ -346,6 +349,8 @@ public class PluginCLI {
                                     Files.createDirectories(dest.getParent());
                                     String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
                                     content = transformAppRolesInContent(content, pluginNameLower);
+                                    content = transformPagePathInContent(content, pluginNameLower);
+                                    content = transformResolvePathInContent(content, pluginNameLower);
                                     Files.write(dest, content.getBytes(StandardCharsets.UTF_8));
                                     migratedTests.add("src/test/java/" + relative.toString().replace('\\', '/'));
                                 } else {
@@ -562,6 +567,41 @@ public class PluginCLI {
         }
         m.appendTail(sb);
 
+        return sb.toString();
+    }
+
+    private static String transformPagePathInContent(String content, String pluginNameLower) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+        Pattern pattern = Pattern.compile("@Page\\s*\\(\\s*path\\s*=\\s*\"/?([^\"]*)\"\\s*\\)");
+        Matcher m = pattern.matcher(content);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String originalPath = m.group(1);
+            String newPath = "/" + pluginNameLower + (originalPath.isEmpty() ? "" : "/" + originalPath);
+            // In case the user wrote myplugin/person we ensure no double slash
+            newPath = newPath.replace("//", "/");
+            m.appendReplacement(sb, Matcher.quoteReplacement("@Page(path = \"" + newPath + "\")"));
+        }
+        m.appendTail(sb);
+        return sb.toString();
+    }
+
+    private static String transformResolvePathInContent(String content, String pluginNameLower) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+        Pattern pattern = Pattern.compile("JettraServer\\.resolvePath\\(\\s*\"/?([^\"]*)\"\\s*\\)");
+        Matcher m = pattern.matcher(content);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String originalPath = m.group(1);
+            String newPath = "/" + pluginNameLower + (originalPath.isEmpty() ? "" : "/" + originalPath);
+            newPath = newPath.replace("//", "/");
+            m.appendReplacement(sb, Matcher.quoteReplacement("JettraServer.resolvePath(\"" + newPath + "\")"));
+        }
+        m.appendTail(sb);
         return sb.toString();
     }
 
@@ -1270,6 +1310,9 @@ public class PluginCLI {
 
         // 3. Remove test classes
         removeTestsFromProject(pluginName);
+
+        // 4. Remove from plugin-config.json
+        removePluginFromConfigJson(pluginName);
     }
 
     private static void removeTestsFromProject(String pluginName) {
@@ -1304,6 +1347,28 @@ public class PluginCLI {
                     }
                 }
             }
+        }
+    }
+
+    private static void removePluginFromConfigJson(String pluginName) {
+        Path configPath = Paths.get("src/main/resources/plugin-config.json");
+        if (!Files.exists(configPath)) {
+            return;
+        }
+        try {
+            String content = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
+            Pattern pattern = Pattern.compile("\\{\\s*\"id\"\\s*:\\s*\"" + Pattern.quote(pluginName) + "\"\\s*,\\s*\"roles\"\\s*:\\s*\\[.*?\\]\\s*\\}", Pattern.DOTALL);
+            Matcher matcher = pattern.matcher(content);
+            if (matcher.find()) {
+                String updated = matcher.replaceAll("");
+                updated = updated.replaceAll("\\[\\s*,", "[");
+                updated = updated.replaceAll(",\\s*\\]", "\n]");
+                updated = updated.replaceAll(",\\s*,", ",");
+                Files.write(configPath, updated.getBytes(StandardCharsets.UTF_8));
+                System.out.println("Removed plugin '" + pluginName + "' from plugin-config.json.");
+            }
+        } catch (Exception e) {
+            System.err.println("Error removing plugin from plugin-config.json: " + e.getMessage());
         }
     }
 
