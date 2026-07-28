@@ -274,6 +274,7 @@ public class PluginCLI {
                                 String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
                                 extractRoles(content, "@PageWidgetAllow", pageRoles);
                                 extractRoles(content, "@ActionWidgetAllow", actionRoles);
+                                content = transformAppRolesInContent(content, pluginNameLower);
                                 content = Pattern.compile("@InjectProperties\\(\\s*name\\s*=\\s*\"messages(?![-\\w]*" + Pattern.quote(pluginName) + ")([^\"]*)\"\\s*\\)")
                                                  .matcher(content)
                                                  .replaceAll("@InjectProperties(name = \"messages-" + pluginName + "$1\")");
@@ -337,7 +338,9 @@ public class PluginCLI {
                                 if (!isJavaFileExcluded(relative, file, excludePackages, excludeClasses)) {
                                     Path dest = targetDir.resolve("src/test/java").resolve(relative);
                                     Files.createDirectories(dest.getParent());
-                                    Files.copy(file, dest, StandardCopyOption.REPLACE_EXISTING);
+                                    String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+                                    content = transformAppRolesInContent(content, pluginNameLower);
+                                    Files.write(dest, content.getBytes(StandardCharsets.UTF_8));
                                     migratedTests.add("src/test/java/" + relative.toString().replace('\\', '/'));
                                 } else {
                                     System.out.println("  [Excluded test class] " + relative);
@@ -384,6 +387,73 @@ public class PluginCLI {
             Files.write(targetDir.resolve("plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
             Files.write(targetDir.resolve("src/main/resources/plugin-descriptor.md"), descriptor.toString().getBytes(StandardCharsets.UTF_8));
 
+            // Generate Plugin AppRole Enum
+            Set<String> pluginAppRoles = new java.util.LinkedHashSet<>();
+            pluginAppRoles.addAll(pageRoles);
+            pluginAppRoles.addAll(actionRoles);
+            if (pluginAppRoles.isEmpty()) {
+                pluginAppRoles.add("ADMIN");
+                pluginAppRoles.add("MANAGER");
+                pluginAppRoles.add("USER");
+            }
+            StringBuilder appRoleCode = new StringBuilder();
+            appRoleCode.append("package pjc.").append(pluginNameLower).append(";\n\n");
+            appRoleCode.append("/**\n * Auto-generated AppRole enum for plugin ").append(pluginName).append("\n */\n");
+            appRoleCode.append("public enum AppRole {\n");
+            List<String> rList = new ArrayList<>(pluginAppRoles);
+            for (int i = 0; i < rList.size(); i++) {
+                appRoleCode.append("    ").append(rList.get(i));
+                if (i < rList.size() - 1) {
+                    appRoleCode.append(",");
+                } else {
+                    appRoleCode.append(";");
+                }
+                appRoleCode.append("\n");
+            }
+            appRoleCode.append("\n    public String getValue() {\n");
+            appRoleCode.append("        return name();\n");
+            appRoleCode.append("    }\n");
+            appRoleCode.append("}\n");
+
+            Path appRoleFile = targetDir.resolve("src/main/java/pjc/" + pluginNameLower + "/AppRole.java");
+            Files.createDirectories(appRoleFile.getParent());
+            Files.write(appRoleFile, appRoleCode.toString().getBytes(StandardCharsets.UTF_8));
+
+            // Generate Plugin PageWidgetAllow Annotation
+            String pageWidgetAllowCode = "package io.jettra.core.security.widget;\n\n" +
+                                         "import java.lang.annotation.ElementType;\n" +
+                                         "import java.lang.annotation.Retention;\n" +
+                                         "import java.lang.annotation.RetentionPolicy;\n" +
+                                         "import java.lang.annotation.Target;\n\n" +
+                                         "import pjc." + pluginNameLower + ".AppRole;\n\n" +
+                                         "/**\n * Auto-generated PageWidgetAllow annotation for plugin " + pluginName + "\n */\n" +
+                                         "@Retention(RetentionPolicy.RUNTIME)\n" +
+                                         "@Target({ElementType.TYPE})\n" +
+                                         "public @interface PageWidgetAllow {\n" +
+                                         "    AppRole[] role() default {};\n" +
+                                         "    String department() default \"\";\n" +
+                                         "}\n";
+            Path pageWidgetAllowFile = targetDir.resolve("src/main/java/io/jettra/core/security/widget/PageWidgetAllow.java");
+            Files.createDirectories(pageWidgetAllowFile.getParent());
+            Files.write(pageWidgetAllowFile, pageWidgetAllowCode.getBytes(StandardCharsets.UTF_8));
+
+            // Generate Plugin ActionWidgetAllow Annotation
+            String actionWidgetAllowCode = "package io.jettra.core.security.widget;\n\n" +
+                                           "import java.lang.annotation.ElementType;\n" +
+                                           "import java.lang.annotation.Retention;\n" +
+                                           "import java.lang.annotation.RetentionPolicy;\n" +
+                                           "import java.lang.annotation.Target;\n\n" +
+                                           "import pjc." + pluginNameLower + ".AppRole;\n\n" +
+                                           "/**\n * Auto-generated ActionWidgetAllow annotation for plugin " + pluginName + "\n */\n" +
+                                           "@Retention(RetentionPolicy.RUNTIME)\n" +
+                                           "@Target({ElementType.METHOD, ElementType.FIELD, ElementType.TYPE})\n" +
+                                           "public @interface ActionWidgetAllow {\n" +
+                                           "    AppRole[] role() default {};\n" +
+                                           "    String department() default \"\";\n" +
+                                           "}\n";
+            Path actionWidgetAllowFile = targetDir.resolve("src/main/java/io/jettra/core/security/widget/ActionWidgetAllow.java");
+            Files.createDirectories(actionWidgetAllowFile.getParent());
+            Files.write(actionWidgetAllowFile, actionWidgetAllowCode.getBytes(StandardCharsets.UTF_8));
 
             // 4. Generate Java Page
             String javaCode = "package io.jettraflux." + pluginNameLower + ";\n\n" +
@@ -426,12 +496,67 @@ public class PluginCLI {
                 String[] parts = roleGroup.split(",");
                 for (String part : parts) {
                     part = part.trim().replace("\"", "");
+                    if (part.contains(".AppRole.")) {
+                        part = part.substring(part.lastIndexOf(".AppRole.") + 9);
+                    } else if (part.contains(".")) {
+                        part = part.substring(part.lastIndexOf(".") + 1);
+                    }
                     if (!part.isEmpty()) {
                         roles.add(part);
                     }
                 }
             }
         }
+    }
+
+    private static String transformAppRolesInContent(String content, String pluginNameLower) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+
+        String pjcPrefix = "pjc." + pluginNameLower + ".AppRole.";
+
+        // Replace import jcf.AppRole; with import pjc.<pluginNameLower>.AppRole;
+        content = content.replace("import jcf.AppRole;", "import pjc." + pluginNameLower + ".AppRole;");
+
+        // Replace jcf.AppRole. with pjc.<pluginNameLower>.AppRole.
+        content = content.replace("jcf.AppRole.", pjcPrefix);
+
+        Pattern pattern = Pattern.compile("(@(?:PageWidgetAllow|ActionWidgetAllow)\\s*\\([^)]*role\\s*=\\s*)(?:\\{([^}]+)\\}|\"([^\"]+)\")");
+        Matcher m = pattern.matcher(content);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String prefix = m.group(1);
+            String arrayBody = m.group(2);
+            String singleValue = m.group(3);
+
+            if (arrayBody != null) {
+                String[] parts = arrayBody.split(",");
+                List<String> newParts = new ArrayList<>();
+                for (String part : parts) {
+                    String trimmed = part.trim();
+                    if (trimmed.startsWith("\"") && trimmed.endsWith("\"")) {
+                        String roleName = trimmed.substring(1, trimmed.length() - 1).trim();
+                        newParts.add(pjcPrefix + roleName);
+                    } else if (trimmed.contains("AppRole.")) {
+                        String roleName = trimmed.substring(trimmed.lastIndexOf("AppRole.") + 8).trim();
+                        newParts.add(pjcPrefix + roleName);
+                    } else if (trimmed.contains(".")) {
+                        String roleName = trimmed.substring(trimmed.lastIndexOf(".") + 1).trim();
+                        newParts.add(pjcPrefix + roleName);
+                    } else if (!trimmed.isEmpty()) {
+                        newParts.add(pjcPrefix + trimmed);
+                    }
+                }
+                m.appendReplacement(sb, Matcher.quoteReplacement(prefix + "{" + String.join(", ", newParts) + "}"));
+            } else if (singleValue != null) {
+                String roleName = singleValue.trim();
+                m.appendReplacement(sb, Matcher.quoteReplacement(prefix + "{" + pjcPrefix + roleName + "}"));
+            }
+        }
+        m.appendTail(sb);
+
+        return sb.toString();
     }
 
     private static void extractVersion(String pomContent, String tag, Map<String, String> versions) {
@@ -547,6 +672,15 @@ public class PluginCLI {
                "                        </goals>\n" +
                "                        <configuration>\n" +
                "                            <createDependencyReducedPom>false</createDependencyReducedPom>\n" +
+               "                            <filters>\n" +
+               "                                <filter>\n" +
+               "                                    <artifact>*:*</artifact>\n" +
+               "                                    <excludes>\n" +
+               "                                        <exclude>io/jettra/core/security/widget/PageWidgetAllow.class</exclude>\n" +
+               "                                        <exclude>io/jettra/core/security/widget/ActionWidgetAllow.class</exclude>\n" +
+               "                                    </excludes>\n" +
+               "                                </filter>\n" +
+               "                            </filters>\n" +
                "                        </configuration>\n" +
                "                    </execution>\n" +
                "                </executions>\n" +
@@ -562,6 +696,8 @@ public class PluginCLI {
                "                        <exclude>**/ForgotPasswordPage.class</exclude>\n" +
                "                        <exclude>**/LoginPage.class</exclude>\n" +
                "                        <exclude>**/TemplatePage.class</exclude>\n" +
+               "                        <exclude>io/jettra/core/security/widget/PageWidgetAllow.class</exclude>\n" +
+               "                        <exclude>io/jettra/core/security/widget/ActionWidgetAllow.class</exclude>\n" +
                "                    </excludes>\n" +
                "                </configuration>\n" +
                "            </plugin>\n" +
