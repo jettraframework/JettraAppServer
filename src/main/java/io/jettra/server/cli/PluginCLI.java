@@ -934,7 +934,8 @@ public class PluginCLI {
             sb.append("    ]\n");
             sb.append("  }");
             
-            if (content.equals("[]") || content.equals("[\n]")) {
+            String trimmedContent = content.replaceAll("\\s", "");
+            if (trimmedContent.equals("[]")) {
                 content = "[\n" + sb.toString() + "\n]";
             } else {
                 int lastBracket = content.lastIndexOf("]");
