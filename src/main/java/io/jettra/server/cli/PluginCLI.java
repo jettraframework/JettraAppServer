@@ -88,6 +88,9 @@ public class PluginCLI {
             case "list-plugin":
                 listPlugins();
                 break;
+            case "sync-plugin-roles":
+                syncPluginRoles();
+                break;
             case "get-plugin":
                 getPlugin(pluginName);
                 break;
@@ -107,7 +110,7 @@ public class PluginCLI {
     private static boolean isNoPluginNameRequiredCommand(String command) {
         if (command == null) return false;
         String cmd = command.toLowerCase();
-        return cmd.equals("list-plugin") || cmd.equals("help") || cmd.equals("-help") || cmd.equals("--help") || cmd.equals("-h");
+        return cmd.equals("list-plugin") || cmd.equals("sync-plugin-roles") || cmd.equals("help") || cmd.equals("-help") || cmd.equals("--help") || cmd.equals("-h");
     }
 
     private static void showHelp() {
@@ -142,6 +145,9 @@ public class PluginCLI {
 
         System.out.println("  list-plugin      Lista los plugins disponibles públicamente en el repositorio central JettraHub.");
         System.out.println("                   Sintaxis: ./mvn-jettra list-plugin\n");
+
+        System.out.println("  sync-plugin-roles Sincroniza los sinónimos de roles definidos en src/main/resources/plugin-config.json generando los Enums correspondientes.");
+        System.out.println("                   Sintaxis: ./mvn-jettra sync-plugin-roles\n");
 
         System.out.println("  get-plugin       Obtiene la especificación de un plugin desde JettraHub y actualiza el pom.xml con su repositorio y dependencia.");
         System.out.println("                   Sintaxis: ./mvn-jettra get-plugin <NombrePlugin>");
@@ -804,6 +810,41 @@ public class PluginCLI {
         } else {
             System.out.println("No menu code block (```java ... ```) found in plugin-descriptor.md for plugin: " + pluginName);
         }
+
+        // Generate or update plugin-config.json with roles from descriptor
+        Set<String> pluginRoles = new LinkedHashSet<>();
+        boolean inPageWidgetAll = false;
+        boolean inActionWidgetAllow = false;
+        
+        for (String line : descLines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("## PageWidgetAll")) {
+                inPageWidgetAll = true;
+                inActionWidgetAllow = false;
+                continue;
+            } else if (trimmed.startsWith("## ActionWidgetAllow")) {
+                inPageWidgetAll = false;
+                inActionWidgetAllow = true;
+                continue;
+            } else if (trimmed.startsWith("## ")) {
+                inPageWidgetAll = false;
+                inActionWidgetAllow = false;
+            }
+            
+            if ((inPageWidgetAll || inActionWidgetAllow) && trimmed.startsWith("role:")) {
+                String rolesPart = trimmed.substring(5).trim();
+                String[] split = rolesPart.split(",");
+                for (String r : split) {
+                    if (!r.trim().isEmpty()) {
+                        pluginRoles.add(r.trim());
+                    }
+                }
+            }
+        }
+        
+        if (!pluginRoles.isEmpty()) {
+            generateOrUpdatePluginConfigJson(pluginName, pluginRoles);
+        }
     }
 
     private static String extractTag(String xml, String tag) {
@@ -812,6 +853,121 @@ public class PluginCLI {
             return m.group(1);
         }
         return null;
+    }
+
+    private static void generateOrUpdatePluginConfigJson(String pluginName, Set<String> roles) {
+        Path resourcesDir = Paths.get("src/main/resources");
+        Path configPath = resourcesDir.resolve("plugin-config.json");
+        try {
+            if (!Files.exists(resourcesDir)) {
+                Files.createDirectories(resourcesDir);
+            }
+            String content = "[]";
+            if (Files.exists(configPath)) {
+                content = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8).trim();
+            }
+            if (content.isEmpty() || !content.startsWith("[")) {
+                content = "[\n]";
+            }
+            
+            if (content.contains("\"id\":\"" + pluginName + "\"") || content.contains("\"id\": \"" + pluginName + "\"")) {
+                System.out.println("Plugin " + pluginName + " already exists in plugin-config.json. Skipping role generation.");
+                return;
+            }
+            
+            StringBuilder sb = new StringBuilder();
+            sb.append("  {\n");
+            sb.append("    \"id\": \"").append(pluginName).append("\",\n");
+            sb.append("    \"roles\": [\n");
+            
+            int count = 0;
+            for (String role : roles) {
+                sb.append("      {\n");
+                sb.append("        \"plugin-role\": \"").append(role).append("\",\n");
+                sb.append("        \"application-role\": \"").append(role).append("\"\n");
+                sb.append("      }");
+                if (++count < roles.size()) {
+                    sb.append(",");
+                }
+                sb.append("\n");
+            }
+            sb.append("    ]\n");
+            sb.append("  }");
+            
+            if (content.equals("[]") || content.equals("[\n]")) {
+                content = "[\n" + sb.toString() + "\n]";
+            } else {
+                int lastBracket = content.lastIndexOf("]");
+                if (lastBracket > 0) {
+                    content = content.substring(0, lastBracket) + ",\n" + sb.toString() + "\n]";
+                }
+            }
+            
+            Files.write(configPath, content.getBytes(StandardCharsets.UTF_8));
+            System.out.println("Generated/Updated plugin-config.json with plugin roles.");
+        } catch (IOException e) {
+            System.err.println("Error generating plugin-config.json: " + e.getMessage());
+        }
+    }
+
+    private static void syncPluginRoles() {
+        Path configPath = Paths.get("src/main/resources/plugin-config.json");
+        if (!Files.exists(configPath)) {
+            System.out.println("plugin-config.json not found in src/main/resources. Run install-plugin first.");
+            return;
+        }
+        try {
+            String content = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
+            Pattern pluginPattern = Pattern.compile("\"id\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"roles\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
+            Matcher pluginMatcher = pluginPattern.matcher(content);
+            
+            Path packageDir = Paths.get("src/main/java/io/jettraflux/roles");
+            Files.createDirectories(packageDir);
+            
+            boolean generatedAny = false;
+            while (pluginMatcher.find()) {
+                String pluginName = pluginMatcher.group(1);
+                String rolesArrayStr = pluginMatcher.group(2);
+                
+                Set<String> appRoles = new LinkedHashSet<>();
+                Pattern rolePattern = Pattern.compile("\"application-role\"\\s*:\\s*\"([^\"]+)\"");
+                Matcher roleMatcher = rolePattern.matcher(rolesArrayStr);
+                while (roleMatcher.find()) {
+                    appRoles.add(roleMatcher.group(1));
+                }
+                
+                if (!appRoles.isEmpty()) {
+                    StringBuilder enumCode = new StringBuilder();
+                    enumCode.append("package io.jettraflux.roles;\n\n");
+                    enumCode.append("/**\n * Auto-generated application roles for plugin ").append(pluginName).append("\n */\n");
+                    enumCode.append("public enum ").append(pluginName).append("Roles {\n");
+                    List<String> roleList = new ArrayList<>(appRoles);
+                    for (int i = 0; i < roleList.size(); i++) {
+                        enumCode.append("    ").append(roleList.get(i));
+                        if (i < roleList.size() - 1) {
+                            enumCode.append(",");
+                        } else {
+                            enumCode.append(";");
+                        }
+                        enumCode.append("\n");
+                    }
+                    enumCode.append("\n    public String getValue() {\n        return name();\n    }\n");
+                    enumCode.append("}\n");
+                    
+                    Path enumFile = packageDir.resolve(pluginName + "Roles.java");
+                    Files.write(enumFile, enumCode.toString().getBytes(StandardCharsets.UTF_8));
+                    System.out.println("Generated " + enumFile.toString());
+                    generatedAny = true;
+                }
+            }
+            if (!generatedAny) {
+                System.out.println("No roles found in plugin-config.json to sync.");
+            } else {
+                System.out.println("Successfully synchronized plugin roles into Java Enums.");
+            }
+        } catch (IOException e) {
+            System.err.println("Error reading plugin-config.json: " + e.getMessage());
+        }
     }
 
     private static void injectIntoTemplatePage(String pluginName, List<String> codeLines, List<String> variables) throws IOException {
