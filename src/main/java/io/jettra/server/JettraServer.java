@@ -482,6 +482,21 @@ public class JettraServer {
                         if (separatorIndex > 0) {
                             String className = line.substring(0, separatorIndex).trim();
                             String path = line.substring(separatorIndex + 1).trim();
+
+                            ClassLoader clForCheck = classLoader;
+                            if (clForCheck == null) clForCheck = Thread.currentThread().getContextClassLoader();
+                            if (clForCheck == null) clForCheck = JettraServer.class.getClassLoader();
+
+                            java.net.URL classResource = clForCheck.getResource(className.replace('.', '/') + ".class");
+                            if (classResource == null) {
+                                System.err.println("[JettraServer] Advertencia: La clase " + className + " referenciada para " + path + " no se encontro en el classpath. Se omitira el registro.");
+                                continue;
+                            }
+
+                            if (handlerRegistry.containsKey(path)) {
+                                System.err.println("[JettraServer] Advertencia: Conflicto de rutas. La ruta " + path + " ya esta registrada. La clase " + className + " sobreescribira el manejador anterior.");
+                            }
+
                             java.util.function.Supplier<com.sun.net.httpserver.HttpHandler> lazyLoader = new java.util.function.Supplier<>() {
                                 private Class<?> cachedClass = null;
 
@@ -489,8 +504,8 @@ public class JettraServer {
                                 public com.sun.net.httpserver.HttpHandler get() {
                                     try {
                                         if (cachedClass == null) {
-                                            ClassLoader cl = Thread.currentThread().getContextClassLoader();
-                                            if (cl == null) cl = classLoader;
+                                            ClassLoader cl = classLoader; // Prioritize the classLoader captured from main thread
+                                            if (cl == null) cl = Thread.currentThread().getContextClassLoader();
                                             if (cl == null) cl = JettraServer.class.getClassLoader();
                                             cachedClass = Class.forName(className, true, cl);
                                             if (!com.sun.net.httpserver.HttpHandler.class.isAssignableFrom(cachedClass)) {
