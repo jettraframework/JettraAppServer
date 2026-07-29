@@ -13,7 +13,7 @@ El comando principal de `mvn-flux` es `-create-code`, que te permite generar cla
 ### Sintaxis
 
 ```bash
-./mvn-flux -create-code -source-record <Paquete.Record> -model [-properties]
+./mvn-flux -create-code -source-record <Paquete.Record> -model [-properties] [-rest-services]
 ```
 
 ### Ejemplo de Uso
@@ -21,7 +21,7 @@ El comando principal de `mvn-flux` es `-create-code`, que te permite generar cla
 Supongamos que tienes una entidad (record) `Person` en el paquete `com.miempresa.proyecto.entity`:
 
 ```bash
-./mvn-flux -create-code -source-record com.miempresa.proyecto.entity.Person -model -properties
+./mvn-flux -create-code -source-record com.miempresa.proyecto.entity.Person -model -properties -rest-services
 ```
 
 Esto analizará tu archivo `Person.java` e implementará un `PersonModel.java` en el paquete `com.miempresa.proyecto.model`. Además, gracias al flag `-properties`, escaneará todos los archivos `messages*.properties` (multilenguaje) en tu carpeta `src/main/resources/` y añadirá automáticamente las etiquetas correspondientes a los atributos.
@@ -40,6 +40,9 @@ person.name = Name
    - Identifica atributos complejos (relaciones con otras clases) y genera selectores de vista única (`@ViewSelectOne`).
    - Identifica colecciones (ej. `List<Department>`) y genera selectores de vista múltiple (`@ViewSelectMany`) referenciando directamente a los servicios.
 3. **Conversor Bidireccional**: Agrega la anotación `@FluxModelToRecordConversor(goal = Person.class)` para que tu ViewModel pueda transformarse de ida y vuelta a la entidad original sin esfuerzo durante el flujo web.
+4. **Servicios REST y Lógica (Opcional)**: Si añades el flag `-rest-services`, generará automáticamente:
+   - Una interfaz `@RestClient` (`PersonRestClient.java`) en el paquete `.restclient` para conectarse a tus APIs, con métodos de CRUD básicos (`findAll`, `save`, `delete`).
+   - Una clase de servicio (`PersonService.java`) en el paquete `.services` configurada con `@Inject` inyectando tu `PersonRestClient` y `PersonModelConversor` listos para ser utilizados.
 
 ---
 
