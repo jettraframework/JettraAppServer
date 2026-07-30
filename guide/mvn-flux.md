@@ -12,19 +12,38 @@ El comando principal de `mvn-flux` es `-create-code`, que te permite generar cla
 
 ### Sintaxis
 
+**Por un Record específico:**
 ```bash
 ./mvn-flux -create-code -source-record <Paquete.Record> -model [-properties] [-converter] [-rest] [-services]
 ```
 
+**Por todo un paquete de Records:**
+```bash
+./mvn-flux -create-code -source-package-record <Paquete> -model [-properties] [-converter] [-rest] [-services]
+```
+
+### Opciones de Origen (`-source-record` / `-source-package-record`)
+
+- **`-source-record <Paquete.Record>`** (o `-from-record`): Recibe la ruta absoluta (Fully Qualified Name) de una clase `record` específica.
+- **`-source-package-record <Paquete>`** (o `-from-package-record`): Recibe el paquete de trabajo (ej. `com.example.entity`). Escanea y toma todos los `records` presentes en ese paquete para aplicar masivamente la generación según los parámetros indicados.
+
 ### Ejemplo de Uso
 
+**1. Generación por un Record individual:**
 Supongamos que tienes una entidad (record) `Person` en el paquete `com.miempresa.proyecto.entity`:
 
 ```bash
 ./mvn-flux -create-code -source-record com.miempresa.proyecto.entity.Person -model -properties -converter -rest -services
 ```
 
-Esto analizará tu archivo `Person.java` e implementará un `PersonModel.java` en el paquete `com.miempresa.proyecto.model`. Además, gracias al flag `-properties`, escaneará todos los archivos `messages*.properties` (multilenguaje) en tu carpeta `src/main/resources/` y añadirá automáticamente las etiquetas correspondientes a los atributos.
+**2. Generación masiva por Paquete de Records:**
+Para procesar automáticamente todos los `records` dentro del paquete `com.miempresa.proyecto.entity`:
+
+```bash
+./mvn-flux -create-code -source-package-record com.miempresa.proyecto.entity -model -properties -converter -rest -services
+```
+
+Esto analizará las entidades del paquete e implementará sus correspondientes `ViewModel` (e.g. `PersonModel.java`) en el paquete `com.miempresa.proyecto.model`. Además, si se incluye `-properties`, escaneará todos los archivos `messages*.properties` (multilenguaje) en la carpeta `src/main/resources/` y añadirá automáticamente las etiquetas correspondientes a los atributos de cada récord.
 
 Por ejemplo, si `Person` tiene un `UUID id` y un `String name`, se añadirá automáticamente a tus archivos properties:
 ```properties
@@ -42,6 +61,16 @@ person.name = Name
 3. **Conversor Bidireccional (Opcional)**: Si añades el flag `-converter`, el CLI generará explícitamente la clase `PersonModelConversor.java` en el paquete `.converter`. Esto es útil para evitar errores de IDE al inyectar esta clase en otras. Si no pasas este flag, podrás usar anotaciones (como `@FluxModelToRecordConversor`) o crearlo manualmente si prefieres el modo clásico.
 4. **Cliente REST (Opcional)**: Si añades el flag `-rest`, generará automáticamente una interfaz `@RestClient` (`PersonRestClient.java`) en el paquete `.restclient` para conectarse a tus APIs, con métodos de CRUD básicos (`findAll`, `save`, `update`, `delete`) y consultas dinámicas `findBy<NombreAtributo>` por cada campo del record.
 5. **Servicio Lógico (Opcional)**: Si añades el flag `-services`, generará una clase de servicio (`PersonService.java`) en el paquete `.services` configurada con `@Inject` inyectando tu `PersonRestClient` lista para ser utilizada.
+
+## Comando: `-help`
+
+Para consultar el menú de ayuda con la explicación detallada de todos los comandos, parámetros y ejemplos desde la consola, ejecuta:
+
+```bash
+./mvn-flux -help
+```
+
+*(También puedes utilizar `help`, `--help` o `-h`).*
 
 ---
 
