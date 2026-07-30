@@ -127,7 +127,7 @@ public class JettraServer {
         String serverConsoleShowRegisterPageTemp = io.jettra.server.config.JettraConfig.getProperty("server.consoleshowregisterpage");
 
         serverConsoleShowRegisterPage = Boolean.FALSE;
-        if (serverConsoleShowRegisterPageTemp.equals("true")) {
+        if ("true".equals(serverConsoleShowRegisterPageTemp)) {
             serverConsoleShowRegisterPage = Boolean.TRUE;
         }
         loadAnnotatedPages();
@@ -318,7 +318,7 @@ public class JettraServer {
                 exchange.getResponseHeaders().add("Referrer-Policy", "strict-origin-when-cross-origin");
 
                 String path = exchange.getRequestURI().getPath();
-                if (!path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains(".")) {
+                if (!path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains("/swagger-ui") && !path.contains(".")) {
                     Object credential = JettraContext.getCurrent().get(JettraContext.Scope.SESSION, "credentialFlux");
                     if (credential == null) {
                         exchange.getResponseHeaders().set("Location", resolvePath("/login"));

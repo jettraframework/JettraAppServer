@@ -19,6 +19,7 @@ public class JettraConfig {
             ex.printStackTrace();
         }
         AppRoleGenerator.generateFromProperties(properties);
+        SystemRoleGenerator.generateFromProperties(properties);
     }
 
     public static String getProperty(String key) {
