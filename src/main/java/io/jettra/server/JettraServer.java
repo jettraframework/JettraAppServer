@@ -318,7 +318,19 @@ public class JettraServer {
                 exchange.getResponseHeaders().add("Referrer-Policy", "strict-origin-when-cross-origin");
 
                 String path = exchange.getRequestURI().getPath();
-                if (!path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains("/swagger-ui") && !path.contains(".")) {
+                
+                String authExcludeStr = io.jettra.server.config.JettraConfig.getProperty("server.auth.exclude");
+                boolean isExcluded = false;
+                if (authExcludeStr != null && !authExcludeStr.isBlank()) {
+                    for (String excludePath : authExcludeStr.split(",")) {
+                        if (path.startsWith(excludePath.trim())) {
+                            isExcluded = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!isExcluded && !path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains("/swagger-ui") && !path.contains(".")) {
                     Object credential = JettraContext.getCurrent().get(JettraContext.Scope.SESSION, "credentialFlux");
                     if (credential == null) {
                         exchange.getResponseHeaders().set("Location", resolvePath("/login"));
