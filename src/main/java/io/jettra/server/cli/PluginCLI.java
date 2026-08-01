@@ -174,8 +174,34 @@ public class PluginCLI {
         }
         System.out.println("Includes test: " + (includeTest ? "yes" : "no"));
 
+        final Set<String> securityRoles = new LinkedHashSet<>();
         final Set<String> pageRoles = new LinkedHashSet<>();
         final Set<String> actionRoles = new LinkedHashSet<>();
+
+        Path localConfigProps = Paths.get("src/main/resources/jettra-config.properties");
+        if (!Files.exists(localConfigProps)) {
+            localConfigProps = Paths.get("jettra-config.properties");
+        }
+        if (Files.exists(localConfigProps)) {
+            try {
+                Properties props = new Properties();
+                try (java.io.InputStream is = Files.newInputStream(localConfigProps)) {
+                    props.load(is);
+                }
+                String secRolesVal = props.getProperty("security.roles");
+                if (secRolesVal != null && !secRolesVal.trim().isEmpty()) {
+                    String[] parts = secRolesVal.split(",");
+                    for (String part : parts) {
+                        String r = part.trim();
+                        if (!r.isEmpty()) {
+                            securityRoles.add(r);
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("Warning: Error reading jettra-config.properties: " + e.getMessage());
+            }
+        }
 
         try {
             if (Files.exists(targetDir)) {
@@ -282,7 +308,9 @@ public class PluginCLI {
                                 extractRoles(content, "@PageWidgetAllow", pageRoles);
                                 extractRoles(content, "@ActionWidgetAllow", actionRoles);
                                 content = transformAppRolesInContent(content, pluginNameLower);
+                                content = transformSystemRolesInContent(content, pluginName, pluginNameLower);
                                 content = transformPagePathInContent(content, pluginNameLower);
+                                content = transformRestPathInContent(content, pluginNameLower);
                                 content = transformResolvePathInContent(content, pluginNameLower);
                                 content = Pattern.compile("@InjectProperties\\(\\s*name\\s*=\\s*\"messages(?![-\\w]*" + Pattern.quote(pluginName) + ")([^\"]*)\"\\s*\\)")
                                                  .matcher(content)
@@ -349,7 +377,9 @@ public class PluginCLI {
                                     Files.createDirectories(dest.getParent());
                                     String content = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
                                     content = transformAppRolesInContent(content, pluginNameLower);
+                                    content = transformSystemRolesInContent(content, pluginName, pluginNameLower);
                                     content = transformPagePathInContent(content, pluginNameLower);
+                                    content = transformRestPathInContent(content, pluginNameLower);
                                     content = transformResolvePathInContent(content, pluginNameLower);
                                     Files.write(dest, content.getBytes(StandardCharsets.UTF_8));
                                     migratedTests.add("src/test/java/" + relative.toString().replace('\\', '/'));
@@ -385,6 +415,11 @@ public class PluginCLI {
                 }
             }
 
+            if (!securityRoles.isEmpty()) {
+                descriptor.append("\n## SecurityRole\n");
+                descriptor.append("role: ").append(String.join(", ", securityRoles)).append("\n");
+            }
+
             if (!pageRoles.isEmpty()) {
                 descriptor.append("\n## PageWidgetAll\n");
                 descriptor.append("role: ").append(String.join(",", pageRoles)).append("\n");
@@ -400,6 +435,7 @@ public class PluginCLI {
 
             // Generate Plugin AppRole Enum
             Set<String> pluginAppRoles = new java.util.LinkedHashSet<>();
+            pluginAppRoles.addAll(securityRoles);
             pluginAppRoles.addAll(pageRoles);
             pluginAppRoles.addAll(actionRoles);
             if (pluginAppRoles.isEmpty()) {
@@ -465,6 +501,35 @@ public class PluginCLI {
             Path actionWidgetAllowFile = targetDir.resolve("src/main/java/io/jettra/core/security/widget/ActionWidgetAllow.java");
             Files.createDirectories(actionWidgetAllowFile.getParent());
             Files.write(actionWidgetAllowFile, actionWidgetAllowCode.getBytes(StandardCharsets.UTF_8));
+
+            // Generate Plugin SystemRole Class
+            Set<String> pluginSystemRoles = new java.util.LinkedHashSet<>(securityRoles);
+            if (pluginSystemRoles.isEmpty()) {
+                pluginSystemRoles.add("ADMIN");
+                pluginSystemRoles.add("MANAGER");
+                pluginSystemRoles.add("DEMO");
+            }
+            StringBuilder systemRoleCode = new StringBuilder();
+            systemRoleCode.append("package pjc.").append(pluginNameLower).append(";\n\n");
+            systemRoleCode.append("/**\n * Auto-generated SystemRole class for plugin ").append(pluginName).append("\n */\n");
+            systemRoleCode.append("public class SystemRole {\n");
+            for (String r : pluginSystemRoles) {
+                systemRoleCode.append("    public static final String ").append(r).append(" = \"").append(r).append("\";\n");
+            }
+            systemRoleCode.append("}\n");
+
+            Path systemRoleFile = targetDir.resolve("src/main/java/pjc/" + pluginNameLower + "/SystemRole.java");
+            Files.createDirectories(systemRoleFile.getParent());
+            Files.write(systemRoleFile, systemRoleCode.toString().getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder pluginSystemRoleCode = new StringBuilder();
+            pluginSystemRoleCode.append("package pjc.").append(pluginNameLower).append(";\n\n");
+            pluginSystemRoleCode.append("/**\n * Auto-generated SystemRole class for plugin ").append(pluginName).append("\n */\n");
+            pluginSystemRoleCode.append("public class ").append(pluginName).append("SystemRole extends SystemRole {\n");
+            pluginSystemRoleCode.append("}\n");
+
+            Path pluginSystemRoleFile = targetDir.resolve("src/main/java/pjc/" + pluginNameLower + "/" + pluginName + "SystemRole.java");
+            Files.write(pluginSystemRoleFile, pluginSystemRoleCode.toString().getBytes(StandardCharsets.UTF_8));
 
             // 4. Generate Java Page
             String javaCode = "package io.jettraflux." + pluginNameLower + ";\n\n" +
@@ -568,6 +633,62 @@ public class PluginCLI {
         m.appendTail(sb);
 
         return sb.toString();
+    }
+
+    private static String transformSystemRolesInContent(String content, String pluginName, String pluginNameLower) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+
+        String targetPackageImport = "import pjc." + pluginNameLower + ".SystemRole;";
+        String pjcPrefix = "pjc." + pluginNameLower + ".SystemRole.";
+
+        if (content.contains("import jcf.systemRole;")) {
+            content = content.replace("import jcf.systemRole;", targetPackageImport);
+        }
+
+        content = content.replace("jcf.systemRole.", pjcPrefix);
+        content = content.replace("systemRole.", pjcPrefix);
+
+        return content;
+    }
+
+    private static String transformRestPathInContent(String content, String pluginNameLower) {
+        if (content == null || content.isEmpty()) {
+            return content;
+        }
+
+        // Find position of class definition (class-level annotations reside before this)
+        int classIdx = -1;
+        Matcher classMatcher = Pattern.compile("\\b(?:public\\s+|protected\\s+|private\\s+)?(?:final\\s+|abstract\\s+)?class\\s+\\w+").matcher(content);
+        if (classMatcher.find()) {
+            classIdx = classMatcher.start();
+        }
+
+        if (classIdx == -1) {
+            return content;
+        }
+
+        String header = content.substring(0, classIdx);
+        String body = content.substring(classIdx);
+
+        // Prepend /pluginNameLower to any class-level @Path
+        Pattern pathPattern = Pattern.compile("@Path\\s*\\(\\s*(?:value\\s*=\\s*)?\"/?([^\"]*)\"\\s*\\)");
+        Matcher m = pathPattern.matcher(header);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String pathVal = m.group(1);
+            if (!pathVal.startsWith(pluginNameLower + "/") && !pathVal.equals(pluginNameLower)) {
+                String newPathVal = "/" + pluginNameLower + (pathVal.isEmpty() ? "" : "/" + pathVal);
+                newPathVal = newPathVal.replace("//", "/");
+                m.appendReplacement(sb, Matcher.quoteReplacement("@Path(\"" + newPathVal + "\")"));
+            } else {
+                m.appendReplacement(sb, Matcher.quoteReplacement(m.group(0)));
+            }
+        }
+        m.appendTail(sb);
+
+        return sb.toString() + body;
     }
 
     private static String transformPagePathInContent(String content, String pluginNameLower) {
@@ -852,39 +973,67 @@ public class PluginCLI {
         }
 
         // Generate or update plugin-config.json with roles from descriptor
-        Set<String> pluginRoles = new LinkedHashSet<>();
+        // Generate or update plugin-config.json with roles from descriptor
+        Set<String> pluginAppRoles = new LinkedHashSet<>();
+        Set<String> pluginSecurityRoles = new LinkedHashSet<>();
+        boolean inSecurityRole = false;
         boolean inPageWidgetAll = false;
         boolean inActionWidgetAllow = false;
         
         for (String line : descLines) {
             String trimmed = line.trim();
-            if (trimmed.startsWith("## PageWidgetAll")) {
+            if (trimmed.startsWith("## SecurityRole")) {
+                inSecurityRole = true;
+                inPageWidgetAll = false;
+                inActionWidgetAllow = false;
+                continue;
+            } else if (trimmed.startsWith("## PageWidgetAll") || trimmed.startsWith("## PageWidgetAllow")) {
+                inSecurityRole = false;
                 inPageWidgetAll = true;
                 inActionWidgetAllow = false;
                 continue;
             } else if (trimmed.startsWith("## ActionWidgetAllow")) {
+                inSecurityRole = false;
                 inPageWidgetAll = false;
                 inActionWidgetAllow = true;
                 continue;
             } else if (trimmed.startsWith("## ")) {
+                inSecurityRole = false;
                 inPageWidgetAll = false;
                 inActionWidgetAllow = false;
             }
             
-            if ((inPageWidgetAll || inActionWidgetAllow) && trimmed.startsWith("role:")) {
+            if (inSecurityRole && trimmed.startsWith("role:")) {
                 String rolesPart = trimmed.substring(5).trim();
                 String[] split = rolesPart.split(",");
                 for (String r : split) {
                     if (!r.trim().isEmpty()) {
-                        pluginRoles.add(r.trim());
+                        pluginSecurityRoles.add(r.trim());
+                    }
+                }
+            } else if ((inPageWidgetAll || inActionWidgetAllow) && trimmed.startsWith("role:")) {
+                String rolesPart = trimmed.substring(5).trim();
+                String[] split = rolesPart.split(",");
+                for (String r : split) {
+                    if (!r.trim().isEmpty()) {
+                        pluginAppRoles.add(r.trim());
                     }
                 }
             }
         }
         
-        if (!pluginRoles.isEmpty()) {
-            generateOrUpdatePluginConfigJson(pluginName, pluginRoles);
+        if (pluginAppRoles.isEmpty()) {
+            pluginAppRoles.add("ADMIN");
+            pluginAppRoles.add("MANAGER");
+            pluginAppRoles.add("USER");
         }
+        if (pluginSecurityRoles.isEmpty()) {
+            pluginSecurityRoles.add("ADMIN");
+            pluginSecurityRoles.add("MANAGER");
+            pluginSecurityRoles.add("DEMO");
+        }
+        
+        generateOrUpdatePluginConfigJson(pluginName, pluginAppRoles, pluginSecurityRoles);
     }
 
     private static String extractTag(String xml, String tag) {
@@ -895,7 +1044,7 @@ public class PluginCLI {
         return null;
     }
 
-    private static void generateOrUpdatePluginConfigJson(String pluginName, Set<String> roles) {
+    private static void generateOrUpdatePluginConfigJson(String pluginName, Set<String> appRoles, Set<String> securityRoles) {
         Path resourcesDir = Paths.get("src/main/resources");
         Path configPath = resourcesDir.resolve("plugin-config.json");
         try {
@@ -921,12 +1070,26 @@ public class PluginCLI {
             sb.append("    \"roles\": [\n");
             
             int count = 0;
-            for (String role : roles) {
+            for (String role : appRoles) {
                 sb.append("      {\n");
                 sb.append("        \"plugin-role\": \"").append(role).append("\",\n");
-                sb.append("        \"application-role\": \"").append(role).append("\"\n");
+                sb.append("        \"applicative-role\": \"").append(role).append("\"\n");
                 sb.append("      }");
-                if (++count < roles.size()) {
+                if (++count < appRoles.size()) {
+                    sb.append(",");
+                }
+                sb.append("\n");
+            }
+            sb.append("    ],\n");
+            sb.append("    \"security-roles\": [\n");
+            
+            count = 0;
+            for (String secRole : securityRoles) {
+                sb.append("      {\n");
+                sb.append("        \"plugin-security-role\": \"").append(secRole).append("\",\n");
+                sb.append("        \"applicative-security-role\": \"").append(secRole).append("\"\n");
+                sb.append("      }");
+                if (++count < securityRoles.size()) {
                     sb.append(",");
                 }
                 sb.append("\n");
@@ -945,7 +1108,7 @@ public class PluginCLI {
             }
             
             Files.write(configPath, content.getBytes(StandardCharsets.UTF_8));
-            System.out.println("Generated/Updated plugin-config.json with plugin roles.");
+            System.out.println("Generated/Updated plugin-config.json with plugin roles and security-roles.");
         } catch (IOException e) {
             System.err.println("Error generating plugin-config.json: " + e.getMessage());
         }
@@ -959,22 +1122,29 @@ public class PluginCLI {
         }
         try {
             String content = new String(Files.readAllBytes(configPath), StandardCharsets.UTF_8);
-            Pattern pluginPattern = Pattern.compile("\"id\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"roles\"\\s*:\\s*\\[(.*?)\\]", Pattern.DOTALL);
-            Matcher pluginMatcher = pluginPattern.matcher(content);
             
             Path packageDir = Paths.get("src/main/java/io/jettraflux/roles");
             Files.createDirectories(packageDir);
             
+            String[] pluginBlocks = content.split("\\{\\s*\"id\"");
             boolean generatedAny = false;
-            while (pluginMatcher.find()) {
-                String pluginName = pluginMatcher.group(1);
-                String rolesArrayStr = pluginMatcher.group(2);
+            
+            for (String block : pluginBlocks) {
+                if (!block.contains(":")) continue;
+                Matcher idMatcher = Pattern.compile("^\\s*:\\s*\"([^\"]+)\"").matcher(block);
+                if (!idMatcher.find()) continue;
+                String pluginName = idMatcher.group(1);
                 
                 Set<String> appRoles = new LinkedHashSet<>();
-                Pattern rolePattern = Pattern.compile("\"application-role\"\\s*:\\s*\"([^\"]+)\"");
-                Matcher roleMatcher = rolePattern.matcher(rolesArrayStr);
-                while (roleMatcher.find()) {
-                    appRoles.add(roleMatcher.group(1));
+                Matcher appRoleMatcher = Pattern.compile("\"(?:application-role|applicative-role)\"\\s*:\\s*\"([^\"]+)\"").matcher(block);
+                while (appRoleMatcher.find()) {
+                    appRoles.add(appRoleMatcher.group(1));
+                }
+                
+                Set<String> secRoles = new LinkedHashSet<>();
+                Matcher secRoleMatcher = Pattern.compile("\"applicative-security-role\"\\s*:\\s*\"([^\"]+)\"").matcher(block);
+                while (secRoleMatcher.find()) {
+                    secRoles.add(secRoleMatcher.group(1));
                 }
                 
                 if (!appRoles.isEmpty()) {
@@ -1000,11 +1170,27 @@ public class PluginCLI {
                     System.out.println("Generated " + enumFile.toString());
                     generatedAny = true;
                 }
+
+                if (!secRoles.isEmpty()) {
+                    StringBuilder sysRoleCode = new StringBuilder();
+                    sysRoleCode.append("package io.jettraflux.roles;\n\n");
+                    sysRoleCode.append("/**\n * Auto-generated system security roles for plugin ").append(pluginName).append("\n */\n");
+                    sysRoleCode.append("public class ").append(pluginName).append("SystemRole {\n");
+                    for (String r : secRoles) {
+                        sysRoleCode.append("    public static final String ").append(r).append(" = \"").append(r).append("\";\n");
+                    }
+                    sysRoleCode.append("}\n");
+                    
+                    Path sysRoleFile = packageDir.resolve(pluginName + "SystemRole.java");
+                    Files.write(sysRoleFile, sysRoleCode.toString().getBytes(StandardCharsets.UTF_8));
+                    System.out.println("Generated " + sysRoleFile.toString());
+                    generatedAny = true;
+                }
             }
             if (!generatedAny) {
                 System.out.println("No roles found in plugin-config.json to sync.");
             } else {
-                System.out.println("Successfully synchronized plugin roles into Java Enums.");
+                System.out.println("Successfully synchronized plugin roles and system roles into Java classes.");
             }
         } catch (IOException e) {
             System.err.println("Error reading plugin-config.json: " + e.getMessage());

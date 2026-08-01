@@ -66,7 +66,7 @@ Si omites `-path`, el generador construirá el plugin en el directorio donde te 
 - **Generación del POM**: Crea un `pom.xml` para el plugin asignando el `groupId` a `io.jettraflux.<nombre-plugin-minuscula>`, y agrega dependencias limpias.
 - **Multilingüismo Localizado**: Escribe los archivos de propiedades (ej: `messages-ReportesPlugin_es.properties`) utilizando el nombre único del plugin.
 - **Página de Entrada**: Escribe la clase `Main<NombrePlugin>Page.java` con las dependencias heredadas y empleando la etiqueta `@InjectProperties(name = "messages-<nombre-plugin>")` vinculada a sus propios resources.
-- **Descriptor de Restricciones**: Genera el archivo `plugin-descriptor.md` en la raíz del plugin para que incluyas las definiciones de WidgetLets y layouts.
+- **Descriptor de Restricciones**: Genera el archivo `plugin-descriptor.md` en la raíz del plugin con las definiciones de WidgetLets, layouts y la sección `## SecurityRole` extrayendo los roles definidos en `security.roles` de `jettra-config.properties`.
 
 ### 2. Instalar un Plugin en tu Proyecto
 
