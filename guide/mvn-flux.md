@@ -6,6 +6,43 @@ Mientras que `mvn-jettra` se enfoca en la administración y gestión del ciclo d
 
 Este script es autogenerado por JettraAppServer en la raíz de tu proyecto cuando inicias el servidor por primera vez, al igual que `mvn-jettra`.
 
+## Comando: `-initialize-front-end`
+
+El comando `-initialize-front-end` permite inicializar automáticamente la estructura frontend de un proyecto nuevo generado con Maven Archetype (por ejemplo, `maven-archetype-quickstart`).
+
+### Flujo de Uso
+
+1. Crear un proyecto nuevo con Maven:
+```bash
+mvn archetype:generate \
+    -DgroupId=com.example.web \
+    -DartifactId=MiExample \
+    -DarchetypeArtifactId=maven-archetype-quickstart \
+    -DinteractiveMode=false
+```
+
+2. Añadir la dependencia de `JettraAppServer` en el `pom.xml`.
+
+3. Ejecutar el comando de inicialización:
+```bash
+./mvn-flux -initialize-front-end
+```
+
+### ¿Qué realiza este comando?
+
+- **Configuración de `pom.xml`**: Actualiza el archivo `pom.xml` configurando las propiedades Java 25, dependencias de Jettra (`JettraAppServer`, `JettraFlux`, `JettraJSON`, `JettraRules`, `JettraJWT`, `JettraRest`, `JettraAnnotation`, `JettraTest`), plugins de compilación/shade y el repositorio `jitpack.io`.
+- **Generación de propiedades**: Crea en `src/main/resources/` los archivos:
+  - `jettra-config.properties` tomando la información de `<groupId>`, `<artifactId>`, `<version>`, `<name>` del `pom.xml`.
+  - `messages.properties`, `messages_es.properties` y `messages_en.properties`.
+- **Clase Principal (`App.java`)**: Crea en el paquete principal la clase `App.java` con toda la configuración del servidor web empotrado, OpenAPI y enrutamiento.
+- **Estructura de Paquetes y Clases Autogeneradas**:
+  - `login/`: Genera `LoginPage.java` y `ForgotPasswordPage.java`.
+  - `template/`: Genera `TemplatePage.java`.
+  - `dashboard/`: Genera `DashboardPage.java`.
+  - `entity/`: Genera `Person.java`.
+  - `model/`: Genera `PersonModel.java`.
+  - `page/`: Genera `PersonPage.java`.
+
 ## Comando: `-create-code`
 
 El comando principal de `mvn-flux` es `-create-code`, que te permite generar clases `ViewModel` complejas de forma completamente automática a partir de tus entidades (`records`).
