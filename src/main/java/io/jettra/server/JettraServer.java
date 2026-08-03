@@ -573,7 +573,7 @@ public class JettraServer {
                                        "    shift\n" +
                                        "fi\n\n" +
                                        "# Execute the CLI tool using the local pom.xml\n" +
-                                       "mvn -q exec:java -Dexec.mainClass=\"io.jettra.flux.cli.FluxCLI\" -Dexec.args=\"$*\"\n";
+                                       "mvn -q exec:java -Dexec.mainClass=\"io.jettra.server.cli.FluxCLI\" -Dexec.args=\"$*\"\n";
                 Files.write(scriptPathFlux, scriptContentFlux.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 
                 String os = System.getProperty("os.name").toLowerCase();
