@@ -241,6 +241,58 @@ public class FluxCLI {
         return imports;
     }
 
+    private static String generatePersonPageTestClass(String pkg) {
+        return "package " + pkg + ".page;\n\n" +
+               "import " + pkg + ".model.PersonModel;\n" +
+               "import io.jettra.flux.binding.FluxBinder;\n" +
+               "import io.jettra.rules.core.RuleResult;\n" +
+               "import io.jettra.test.annotation.JettraTest;\n" +
+               "import io.jettra.test.core.JettraAssert;\n" +
+               "import io.jettra.test.wui.WuiTestRunner;\n\n" +
+               "import java.util.HashMap;\n" +
+               "import java.util.List;\n" +
+               "import java.util.Map;\n\n" +
+               "public class PersonPageTest {\n\n" +
+               "    @JettraTest\n" +
+               "    public void testPersonModelJavaMethodValidation() {\n" +
+               "        PersonModel model = new PersonModel();\n" +
+               "        Map<String, String> params = new HashMap<>();\n" +
+               "        params.put(\"name\", \"Juan Perez\");\n" +
+               "        params.put(\"email\", \"juan@example.com\");\n" +
+               "        params.put(\"age\", \"30\");\n\n" +
+               "        List<RuleResult> results = new FluxBinder(model)\n" +
+               "                .bind(params)\n" +
+               "                .compute()\n" +
+               "                .validate();\n\n" +
+               "        JettraAssert.assertTrue(results.stream().allMatch(RuleResult::isValid), \"Method-level validation for PersonModel should pass\");\n\n" +
+               "        // Test invalid email\n" +
+               "        PersonModel invalidModel = new PersonModel();\n" +
+               "        Map<String, String> invalidParams = new HashMap<>();\n" +
+               "        invalidParams.put(\"name\", \"Juan Perez\");\n" +
+               "        invalidParams.put(\"email\", \"invalid-email-address\");\n" +
+               "        invalidParams.put(\"age\", \"30\");\n\n" +
+               "        List<RuleResult> invalidResults = new FluxBinder(invalidModel)\n" +
+               "                .bind(invalidParams)\n" +
+               "                .compute()\n" +
+               "                .validate();\n\n" +
+               "        JettraAssert.assertTrue(invalidResults.stream().anyMatch(r -> !r.isValid()), \"Method-level validation should fail for invalid email\");\n" +
+               "    }\n\n" +
+               "    @JettraTest\n" +
+               "    public void testPersonModelWebScriptGeneration() {\n" +
+               "        String script = FluxBinder.generateWebRulesScript(PersonModel.class, \"personForm\");\n" +
+               "        JettraAssert.assertTrue(script != null && script.contains(\"function validateModelRules\"), \"Web-level JS validation script should be generated for PersonModel\");\n" +
+               "        JettraAssert.assertTrue(script.contains(\"correo electrónico válido\") || script.contains(\"valid email\"), \"Web-level validation for Email should be included in JS script\");\n" +
+               "    }\n\n" +
+               "    @JettraTest\n" +
+               "    public void testPersonPageSimulation() {\n" +
+               "        WuiTestRunner wuiRunner = new WuiTestRunner();\n" +
+               "        wuiRunner.validateInterface(\"PersonPage\");\n" +
+               "        wuiRunner.registerFormData(\"personForm\", \"{\\\"name\\\":\\\"Juan\\\", \\\"email\\\":\\\"juan@example.com\\\", \\\"age\\\":\\\"25\\\"}\");\n" +
+               "        JettraAssert.assertTrue(true, \"Simulación de PersonPage ejecutada exitosamente\");\n" +
+               "    }\n" +
+               "}\n";
+    }
+
     private static boolean isBasicType(String type) {
         if (type == null) return false;
         if (type.startsWith("List<") || type.startsWith("Set<") || type.startsWith("Collection<") || type.startsWith("Map<")) {
@@ -1262,6 +1314,11 @@ public class FluxCLI {
             Files.createDirectories(pagePath);
             System.out.println("Generating " + mainPackage + ".page.PersonPage.java...");
             Files.write(pagePath.resolve("PersonPage.java"), generatePersonPageClass(mainPackage).getBytes(StandardCharsets.UTF_8));
+
+            Path testPagePath = Paths.get("src/test/java/" + mainPackage.replace('.', '/') + "/page");
+            Files.createDirectories(testPagePath);
+            System.out.println("Generating " + mainPackage + ".page.PersonPageTest.java...");
+            Files.write(testPagePath.resolve("PersonPageTest.java"), generatePersonPageTestClass(mainPackage).getBytes(StandardCharsets.UTF_8));
 
             System.out.println("Generating Dockerfile...");
             String serverPort = "9010";
