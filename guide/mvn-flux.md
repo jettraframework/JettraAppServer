@@ -45,61 +45,64 @@ mvn archetype:generate \
 
 ## Comando: `-create-code`
 
-El comando principal de `mvn-flux` es `-create-code`, que te permite generar clases `ViewModel` complejas de forma completamente automática a partir de tus entidades (`records`).
+El comando principal de `mvn-flux` es `-create-code`, que permite la generación automática de múltiples capas de la arquitectura (Modelos, Servicios, Controladores, Repositorios, Vistas y Pruebas) a partir de tus entidades (`records`). Esto acelera significativamente el desarrollo al reducir el código repetitivo.
 
-### Sintaxis
+### Sintaxis y Opciones
+
+Puedes generar el código para un record específico o para un paquete completo:
 
 **Por un Record específico:**
 ```bash
-./mvn-flux -create-code -source-record <Paquete.Record> -model [-properties] [-converter] [-rest] [-services] [-page] [-page-crud] [-test-rest] [-test-service] [-test-page]
+./mvn-flux -create-code -source-record <Paquete.Record> -model [Opciones]
 ```
 
 **Por todo un paquete de Records:**
 ```bash
-./mvn-flux -create-code -source-package-record <Paquete> -model [-properties] [-converter] [-rest] [-services] [-page] [-page-crud] [-test-rest] [-test-service] [-test-page]
+./mvn-flux -create-code -source-package-record <Paquete> -model [Opciones]
 ```
 
-### Opciones de Origen (`-source-record` / `-source-package-record`)
+#### Parámetros Principales
+- **`-source-record <FQN>`** (o `-from-record`): Ruta absoluta de un `record` (ej. `com.example.entity.Person`).
+- **`-source-package-record <Paquete>`** (o `-from-package-record`): Paquete que contiene múltiples `records` para generación masiva (ej. `com.example.entity`).
+- **`-model`**: **[Requerido]** Genera la clase `ViewModel` base para la entidad.
 
-- **`-source-record <Paquete.Record>`** (o `-from-record`): Recibe la ruta absoluta (Fully Qualified Name) de una clase `record` específica.
-- **`-source-package-record <Paquete>`** (o `-from-package-record`): Recibe el paquete de trabajo (ej. `com.example.entity`). Escanea y toma todos los `records` presentes en ese paquete para aplicar masivamente la generación según los parámetros indicados.
+#### Opciones de Generación (Flags)
+Añade los siguientes flags al comando para generar las capas adicionales que necesites:
 
-### Ejemplo de Uso
+- **`-properties`**: Actualiza los archivos de propiedades (ej. `messages_es.properties`) con las etiquetas de los atributos del record.
+- **`-converter`**: Genera la clase conversora bidireccional entre el `Record` y su `ViewModel`.
+- **`-repository`**: Genera la capa de acceso a datos (Interfaz e Implementación del repositorio).
+- **`-services`**: Crea la clase de servicio lógico con la inyección de dependencias necesaria.
+- **`-rest`**: Construye la interfaz cliente REST para la comunicación con APIs externas.
+- **`-controller`**: Genera el controlador REST para exponer la entidad como un endpoint.
+- **`-page`**: Crea una página UI en blanco conectada al ViewModel.
+- **`-page-crud`**: Genera una página UI completa con funcionalidad CRUD (Tablas, Paginación, Formularios, Modales).
+- **`-test-rest` / `-test-service` / `-test-page`**: Genera las estructuras base para pruebas unitarias y de integración de cada capa respectiva.
 
-**1. Generación por un Record individual:**
-Supongamos que tienes una entidad (record) `Person` en el paquete `com.miempresa.proyecto.entity`:
+### Ejemplos de Uso
+
+**1. Generación Full-Stack para una Entidad:**
+Generar todas las capas (Modelo, Repositorio, Controlador, Servicio, CRUD y Pruebas) para la entidad `Person`:
 
 ```bash
-./mvn-flux -create-code -source-record com.miempresa.proyecto.entity.Person -model -properties -converter -rest -services -page-crud -test-rest -test-service -test-page
+./mvn-flux -create-code -source-record com.miempresa.proyecto.entity.Person -model -properties -converter -repository -controller -services -rest -page-crud -test-rest -test-service -test-page
 ```
 
-**2. Generación masiva por Paquete de Records:**
-Para procesar automáticamente todos los `records` dentro del paquete `com.miempresa.proyecto.entity`:
+**2. Generación Masiva para un Paquete:**
+Procesar todos los `records` del paquete `entity` de una sola vez:
 
 ```bash
-./mvn-flux -create-code -source-package-record com.miempresa.proyecto.entity -model -properties -converter -rest -services -page-crud -test-rest -test-service -test-page
-```
-
-Esto analizará las entidades del paquete e implementará sus correspondientes `ViewModel` (e.g. `PersonModel.java`) en el paquete `com.miempresa.proyecto.model`. Además, si se incluye `-properties`, escaneará todos los archivos `messages*.properties` (multilenguaje) en la carpeta `src/main/resources/` y añadirá automáticamente las etiquetas correspondientes a los atributos de cada récord.
-
-Por ejemplo, si `Person` tiene un `UUID id` y un `String name`, se añadirá automáticamente a tus archivos properties:
-```properties
-person.id = Id
-person.name = Name
+./mvn-flux -create-code -source-package-record com.miempresa.proyecto.entity -model -properties -converter -repository -controller -services -rest -page-crud
 ```
 
 ### ¿Qué hace internamente?
 
-1. **Inferencia de Paquetes**: Asume de manera inteligente que si tu récord está en un subpaquete `.entity`, el ViewModel debe residir en `.model`. De igual manera, asume que los servicios residen en `.services`, clientes REST en `.restclient`, páginas en `.pages`.
-2. **Generación de Selectores Visuales**: 
-   - Transforma atributos básicos (como `String`, `Integer`) en campos simples con sus respectivas anotaciones `@PropertiesInRecord`, `@PropertiesLabel` y validaciones (`@NotNull`).
-   - Identifica atributos complejos (relaciones con otras clases) y genera selectores de vista única (`@ViewSelectOne`).
-   - Identifica colecciones (ej. `List<Department>`) y genera selectores de vista múltiple (`@ViewSelectMany`) referenciando directamente a los servicios.
-3. **Conversor Bidireccional (Opcional)**: Si añades el flag `-converter`, el CLI generará explícitamente la clase `PersonModelConverter.java` en el paquete `.converter`. Esto es útil para evitar errores de IDE al inyectar esta clase en otras. Si no pasas este flag, podrás usar anotaciones (como `@FluxModelToRecordConversor`) o crearlo manualmente si prefieres el modo clásico.
-4. **Cliente REST (Opcional)**: Si añades el flag `-rest`, generará automáticamente una interfaz `@RestClient` (`PersonRestClient.java`) en el paquete `.restclient` para conectarse a tus APIs, con métodos de CRUD básicos (`findAll`, `save`, `update`, `delete`) y consultas dinámicas `findBy<NombreAtributo>` por cada campo del record.
-5. **Servicio Lógico (Opcional)**: Si añades el flag `-services`, generará una clase de servicio (`PersonService.java`) en el paquete `.services` configurada con `@Inject` inyectando tu `PersonRestClient` lista para ser utilizada.
-6. **Vistas / Páginas (Opcional)**: Si añades el flag `-page`, generará una página en blanco adaptada al record. Si en cambio añades el flag `-page-crud`, se construirá un CRUD visual completo (`PersonCrudPage.java`) con DataTable, paginación, modales, etc.
-7. **Pruebas Unitarias/Integración (Opcional)**: Con los flags `-test-rest`, `-test-service`, y `-test-page`, se generarán las estructuras de prueba en `src/test/java` para las correspondientes capas de tu aplicación.
+1. **Inferencia Inteligente de Paquetes**: Organiza automáticamente el código generado en subpaquetes correspondientes (`.model`, `.services`, `.restclient`, `.pages`, `.repository`, `.controller`) basándose en la ubicación original del record.
+2. **Componentes Visuales Dinámicos**: 
+   - Mapea atributos simples a campos de texto.
+   - Detecta relaciones complejas y colecciones, generando selectores avanzados (`@ViewSelectOne`, `@ViewSelectMany`).
+3. **Gestión de Etiquetas Automática**: Con `-properties`, extrae los nombres de las variables y alimenta los archivos de internacionalización (i18n) para la UI.
+4. **Integración Completa**: Inyecta y conecta las distintas capas (ej. inyecta el `RestClient` o `Repository` en el `Service`, y el `Service` en el `Page` o `Controller`) para que el código generado sea funcional casi de inmediato.
 
 ## Comando: `-help`
 
