@@ -2293,6 +2293,7 @@ public class FluxCLI {
                 "    <groupId>com.jettra.theme</groupId>\n" +
                 "    <artifactId>" + projectName.toLowerCase() + "</artifactId>\n" +
                 "    <version>1.0.0</version>\n" +
+                "    <name>" + projectName + "</name>\n" +
                 "    <packaging>jar</packaging>\n" +
                 "    <properties>\n" +
                 "        <maven.compiler.source>25</maven.compiler.source>\n" +
@@ -2302,22 +2303,27 @@ public class FluxCLI {
                 "</project>\n";
             Files.write(projectPath.resolve("pom.xml"), pomContent.getBytes(StandardCharsets.UTF_8));
             
-            // Generate theme.json with default/red properties for SkyRed
-            String themeContent = "{\n" +
-                "  \"name\": \"" + projectName + "\",\n" +
-                "  \"primary\": \"#d32f2f\",\n" +
-                "  \"secondary\": \"#f44336\",\n" +
-                "  \"background\": \"#ffebee\",\n" +
-                "  \"surface\": \"#ffffff\",\n" +
-                "  \"onPrimary\": \"#ffffff\",\n" +
-                "  \"onSurface\": \"#212121\",\n" +
-                "  \"buttonStyle\": \"border: none; border-radius: 4px; padding: 10px 20px; font-weight: 500; cursor: pointer; transition: background 0.3s; background-color: #d32f2f; color: #ffffff;\",\n" +
-                "  \"cardStyle\": \"border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 16px; background-color: #ffffff;\",\n" +
-                "  \"containerStyle\": \"padding: 16px; border-radius: 4px;\",\n" +
-                "  \"textStyle\": \"font-size: 16px; color: #212121;\",\n" +
-                "  \"customCss\": \".top-btn-today { background-color: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }\\n.sidebar-logo { font-size: 1.5rem; font-weight: 700; color: #d32f2f; padding: 10px 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }\",\n" +
-                "  \"customJs\": \"console.log('Loaded theme " + projectName + "');\"\n" +
-                "}";
+            // Generate theme.json with scraped properties or default properties
+            String themeContent;
+            if (urlSource != null && !urlSource.isEmpty()) {
+                themeContent = ThemeScraper.scrapeThemeJson(urlSource, projectName);
+            } else {
+                themeContent = "{\n" +
+                    "  \"name\": \"" + projectName + "\",\n" +
+                    "  \"primary\": \"#d32f2f\",\n" +
+                    "  \"secondary\": \"#f44336\",\n" +
+                    "  \"background\": \"#ffebee\",\n" +
+                    "  \"surface\": \"#ffffff\",\n" +
+                    "  \"onPrimary\": \"#ffffff\",\n" +
+                    "  \"onSurface\": \"#212121\",\n" +
+                    "  \"buttonStyle\": \"border: none; border-radius: 4px; padding: 10px 20px; font-weight: 500; cursor: pointer; transition: background 0.3s; background-color: #d32f2f; color: #ffffff;\",\n" +
+                    "  \"cardStyle\": \"border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 16px; background-color: #ffffff;\",\n" +
+                    "  \"containerStyle\": \"padding: 16px; border-radius: 4px;\",\n" +
+                    "  \"textStyle\": \"font-size: 16px; color: #212121;\",\n" +
+                    "  \"customCss\": \".top-btn-today { background-color: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }\\n.sidebar-logo { font-size: 1.5rem; font-weight: 700; color: #d32f2f; padding: 10px 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }\",\n" +
+                    "  \"customJs\": \"console.log('Loaded theme " + projectName + "');\"\n" +
+                    "}";
+            }
             Files.write(projectPath.resolve("src/main/resources/META-INF/theme.json"), themeContent.getBytes(StandardCharsets.UTF_8));
             
             // Generate Java Class
@@ -2330,11 +2336,9 @@ public class FluxCLI {
                 "    public static class Template {\n" +
                 "        public static final String CustomCSS = \"<style>\\n\"\n" +
                 "            + \"/* " + projectName + "Theme Custom CSS */\\n\"\n" +
-                "            + \".top-btn-today { background-color: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }\\n\"\n" +
-                "            + \".sidebar-logo { font-size: 1.5rem; font-weight: 700; color: #d32f2f; padding: 10px 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }\\n\"\n" +
                 "            + \"</style>\\n\";\n\n" +
                 "        public static final String CustomJS = \"<script>\\n\"\n" +
-                "            + \"console.log('Loaded theme " + projectName + "');\\n\"\n" +
+                "            + \"/* Scripts are loaded from theme.json */\\n\"\n" +
                 "            + \"</script>\";\n" +
                 "    }\n" +
                 "}\n";
