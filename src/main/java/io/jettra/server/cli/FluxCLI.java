@@ -2321,6 +2321,26 @@ public class FluxCLI {
                 "}";
             Files.write(projectPath.resolve("src/main/resources/META-INF/theme.json"), themeContent.getBytes(StandardCharsets.UTF_8));
             
+            // Generate Java Class
+            String pkgName = "com.jettra.theme." + projectName.toLowerCase();
+            Path javaDir = projectPath.resolve("src/main/java/" + pkgName.replace(".", "/"));
+            Files.createDirectories(javaDir);
+            
+            String javaClassContent = "package " + pkgName + ";\n\n" +
+                "public class " + projectName + "Theme {\n" +
+                "    public static class Template {\n" +
+                "        public static final String CustomCSS = \"<style>\\n\"\n" +
+                "            + \"/* " + projectName + "Theme Custom CSS */\\n\"\n" +
+                "            + \".top-btn-today { background-color: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }\\n\"\n" +
+                "            + \".sidebar-logo { font-size: 1.5rem; font-weight: 700; color: #d32f2f; padding: 10px 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }\\n\"\n" +
+                "            + \"</style>\\n\";\n\n" +
+                "        public static final String CustomJS = \"<script>\\n\"\n" +
+                "            + \"console.log('Loaded theme " + projectName + "');\\n\"\n" +
+                "            + \"</script>\";\n" +
+                "    }\n" +
+                "}\n";
+            Files.write(javaDir.resolve(projectName + "Theme.java"), javaClassContent.getBytes(StandardCharsets.UTF_8));
+            
             System.out.println("✅ Theme project '" + projectName + "' generated successfully!");
             System.out.println("Next steps: ");
             System.out.println("  1. cd " + projectName);

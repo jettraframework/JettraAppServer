@@ -1,0 +1,10 @@
+--- src/main/java/io/jettra/server/JettraServer.java
++++ src/main/java/io/jettra/server/JettraServer.java
+@@ -507,6 +507,11 @@
+             java.util.Enumeration<java.net.URL> resources = classLoader.getResources("META-INF/jettra/page.classes");
+             java.util.Set<String> processedRoutes = new java.util.HashSet<>();
+ 
++            System.err.println("===> Keys BEFORE loop: " + handlerRegistry.keySet());
++
+             while (resources.hasMoreElements()) {
+                 java.net.URL url = resources.nextElement();

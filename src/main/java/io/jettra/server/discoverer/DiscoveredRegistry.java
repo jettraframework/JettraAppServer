@@ -51,7 +51,9 @@ public class DiscoveredRegistry {
                             if (automatic) {
                                 try {
                                     Class<?> clazz = Class.forName(className, true, classLoader);
-                                    classes.add(clazz);
+                                    if (!classes.contains(clazz)) {
+                                        classes.add(clazz);
+                                    }
                                 } catch (ClassNotFoundException e) {
                                     System.err.println("[JettraServer] Advertencia: No se pudo cargar la clase descubierta: " + className);
                                 }

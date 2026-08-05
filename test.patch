@@ -1,0 +1,9 @@
+--- src/main/java/io/jettra/server/JettraServer.java
++++ src/main/java/io/jettra/server/JettraServer.java
+@@ -501,6 +501,7 @@
+ 
+     private void loadAnnotatedPages() {
++        System.err.println("===> loadAnnotatedPages() CALLED!");
+         try {
+             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+             java.util.Enumeration<java.net.URL> resources = classLoader.getResources("META-INF/jettra/page.classes");
