@@ -30,6 +30,7 @@ public class JettraServer {
     private HttpServer server;
     private boolean isRunning = false;
     private Map<String, Object> handlerRegistry = new HashMap<>(); // Can be HttpHandler, Class, or Supplier
+    private Map<String, String> registeredPageClasses = new HashMap<>();
     private Thread hotReloadThread;
     private String errorPage;
     private int customPort = -1;
@@ -530,8 +531,14 @@ public class JettraServer {
                             }
 
                             if (handlerRegistry.containsKey(path)) {
-                                System.err.println("[JettraServer] Advertencia: Conflicto de rutas. La ruta " + path + " ya esta registrada. La clase " + className + " sobreescribira el manejador anterior.");
+                                String existingClassName = registeredPageClasses.get(path);
+                                if (existingClassName != null && !existingClassName.equals(className)) {
+                                    System.err.println("[JettraServer] Advertencia: Conflicto de rutas. La ruta " + path + " ya esta registrada. La clase " + className + " sobreescribira el manejador anterior (" + existingClassName + ").");
+                                } else if (existingClassName == null) {
+                                    System.err.println("[JettraServer] Advertencia: Conflicto de rutas. La ruta " + path + " ya esta registrada. La clase " + className + " sobreescribira el manejador anterior.");
+                                }
                             }
+                            registeredPageClasses.put(path, className);
 
                             java.util.function.Supplier<com.sun.net.httpserver.HttpHandler> lazyLoader = new java.util.function.Supplier<>() {
                                 private Class<?> cachedClass = null;
