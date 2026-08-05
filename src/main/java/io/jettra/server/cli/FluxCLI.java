@@ -173,10 +173,9 @@ public class FluxCLI {
                         }
                     }
                     if (pathDir == null) {
-                        System.out.println("Error: Missing -path parameter for -generate-theme-project");
-                    } else {
-                        generateThemeProject(projectName, pathDir, urlSource);
+                        pathDir = System.getProperty("user.dir");
                     }
+                    generateThemeProject(projectName, pathDir, urlSource);
                 } else {
                     System.out.println("Error: Missing project name for -generate-theme-project");
                 }
@@ -196,7 +195,7 @@ public class FluxCLI {
         System.out.println("COMANDOS DISPONIBLES:");
         System.out.println("  -create-code           Genera código fuente automáticamente a partir de entidades (records).");
         System.out.println("  -initialize-front-end  Inicializa la estructura frontend completa del proyecto pom.xml, jettra-config.properties, App.java y paquetes.");
-        System.out.println("  -generate-theme-project <nombre> -path <ruta> [-url-source <url>] Genera un proyecto Maven independiente para un plugin de tema.");
+        System.out.println("  -generate-theme-project <nombre> [-path <ruta>] [-url-source <url>] Genera un proyecto Maven independiente para un plugin de tema.");
         System.out.println("  -help                  Muestra este menú de ayuda explicativo en la consola.\n");
         System.out.println("PARÁMETROS Y OPCIONES PARA -create-code:");
         System.out.println("  -source-record <FQN>            Especifica la ruta completa (Fully Qualified Name) de un record.");
@@ -223,7 +222,7 @@ public class FluxCLI {
         System.out.println("  2. Por un paquete completo de Records:");
         System.out.println("     ./mvn-flux -create-code -source-package-record com.example.entity -model -properties -converter -rest -services\n");
         System.out.println("  3. Generar un plugin de tema:");
-        System.out.println("     ./mvn-flux -generate-theme-project SkyRed -path ~/Descargas -url-source https://primeui.store/templates/angular/freya");
+        System.out.println("     ./mvn-flux -generate-theme-project SkyRed -url-source https://primeui.store/templates/angular/freya");
         System.out.println("====================================================================================================");
     }
 
