@@ -168,8 +168,12 @@ public class FluxCLI {
                     for (int j = 2; j < argList.size(); j++) {
                         if ("-path".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
                             pathDir = argList.get(j + 1);
+                            j++; // skip next since it's the path value
                         } else if ("-url-source".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
                             urlSource = argList.get(j + 1);
+                            j++; // skip next since it's the url value
+                        } else if (argList.get(j).startsWith("http")) {
+                            urlSource = argList.get(j); // fallback for missing -url-source flag
                         }
                     }
                     if (pathDir == null) {
