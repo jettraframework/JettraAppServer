@@ -56,9 +56,8 @@ public class ThemeScraper {
                 Matcher styleMatcher = stylePattern.matcher(html);
                 while (styleMatcher.find()) {
                     String styleContent = styleMatcher.group(1);
-                    styleContent = styleContent.replaceAll("\\r?\\n", " ");
-                    styleContent = styleContent.replaceAll("\\s+", " ");
-                    styleContent = styleContent.replaceAll("\"", "'");
+                    styleContent = styleContent.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
+                    styleContent = resolveCssUrls(styleContent, urlSource);
                     customCss.append(styleContent).append(" ");
                 }
 
@@ -70,9 +69,8 @@ public class ThemeScraper {
                         HttpResponse<String> cssResp = client.send(cssReq, HttpResponse.BodyHandlers.ofString());
                         String css = cssResp.body();
                         // Basic minification to fit in JSON
-                        css = css.replaceAll("\\r?\\n", " ");
-                        css = css.replaceAll("\\s+", " ");
-                        css = css.replaceAll("\"", "'");
+                        css = css.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
+                        css = resolveCssUrls(css, cssUrl);
                         customCss.append("/* From ").append(cssUrl).append(" */ ").append(css).append(" ");
                     } catch (Exception e) {
                         System.err.println("[ThemeScraper] Warning: Could not download CSS " + cssUrl + " - " + e.getMessage());
@@ -171,6 +169,20 @@ public class ThemeScraper {
             }
         }
 
+        if (customCss.toString().contains("--bs-primary")) {
+            customJs.append("document.documentElement.setAttribute('data-bs-theme', 'dark'); ");
+            customJs.append("const addBsClasses = (node) => { if(node.querySelectorAll) { ");
+            customJs.append("node.querySelectorAll('.espresso-textfield, .espresso-textarea, .espresso-input').forEach(el => el.classList.add('form-control')); ");
+            customJs.append("node.querySelectorAll('.espresso-dropdown, .espresso-select').forEach(el => el.classList.add('form-select')); ");
+            customJs.append("node.querySelectorAll('.espresso-button').forEach(el => el.classList.add('btn', 'btn-primary')); ");
+            customJs.append("node.querySelectorAll('.espresso-checkbox').forEach(el => el.classList.add('form-check-input')); ");
+            customJs.append("} }; ");
+            customJs.append("document.addEventListener('DOMContentLoaded', () => { ");
+            customJs.append("  addBsClasses(document); ");
+            customJs.append("  new MutationObserver((mutations) => { mutations.forEach(m => m.addedNodes.forEach(n => addBsClasses(n))); }).observe(document.body, {childList: true, subtree: true}); ");
+            customJs.append("}); ");
+        }
+
         String customJsStr = customJs.length() > 0 ? customJs.toString() + "console.log('Scraped Theme scripts injected!');" : "console.log('Scraped Theme Loaded!');";
 
         String buttonStyle = "border: none; border-radius: 8px; padding: 12px 24px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; background: " + primary + "; color: " + onPrimary + ";";
@@ -191,5 +203,22 @@ public class ThemeScraper {
                "  \"customCss\": \"" + customCss.toString().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ").replace("\r", " ") + "\",\n" +
                "  \"customJs\": \"" + customJsStr.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ").replace("\r", " ") + "\"\n" +
                "}";
+    }
+
+    private static String resolveCssUrls(String css, String baseUrl) {
+        Pattern urlPattern = Pattern.compile("url\\(['\"]?(.*?)['\"]?\\)", Pattern.CASE_INSENSITIVE);
+        Matcher m = urlPattern.matcher(css);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String url = m.group(1).trim();
+            if (!url.startsWith("data:") && !url.startsWith("http")) {
+                try {
+                    url = URI.create(baseUrl).resolve(url).toString();
+                } catch (Exception e) {}
+            }
+            m.appendReplacement(sb, "url('" + url + "')");
+        }
+        m.appendTail(sb);
+        return sb.toString();
     }
 }

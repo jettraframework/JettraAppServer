@@ -2290,7 +2290,7 @@ public class FluxCLI {
                 "         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
                 "         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n" +
                 "    <modelVersion>4.0.0</modelVersion>\n" +
-                "    <groupId>com.jettra.theme</groupId>\n" +
+                "    <groupId>io.jettra.theme</groupId>\n" +
                 "    <artifactId>" + projectName.toLowerCase() + "</artifactId>\n" +
                 "    <version>1.0.0</version>\n" +
                 "    <name>" + projectName + "</name>\n" +
@@ -2327,7 +2327,7 @@ public class FluxCLI {
             Files.write(projectPath.resolve("src/main/resources/META-INF/theme.json"), themeContent.getBytes(StandardCharsets.UTF_8));
             
             // Generate Java Class
-            String pkgName = "com.jettra.theme." + projectName.toLowerCase();
+            String pkgName = "io.jettra.themes." + projectName.toLowerCase();
             Path javaDir = projectPath.resolve("src/main/java/" + pkgName.replace(".", "/"));
             Files.createDirectories(javaDir);
             
