@@ -160,6 +160,27 @@ public class FluxCLI {
             case "initialize-front-end":
                 initializeFrontEnd();
                 break;
+            case "-generate-theme-project":
+                if (argList.size() > 1) {
+                    String projectName = argList.get(1);
+                    String pathDir = null;
+                    String urlSource = null;
+                    for (int j = 2; j < argList.size(); j++) {
+                        if ("-path".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
+                            pathDir = argList.get(j + 1);
+                        } else if ("-url-source".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
+                            urlSource = argList.get(j + 1);
+                        }
+                    }
+                    if (pathDir == null) {
+                        System.out.println("Error: Missing -path parameter for -generate-theme-project");
+                    } else {
+                        generateThemeProject(projectName, pathDir, urlSource);
+                    }
+                } else {
+                    System.out.println("Error: Missing project name for -generate-theme-project");
+                }
+                break;
             default:
                 System.out.println("Unknown command: " + command);
                 System.out.println();
@@ -175,6 +196,7 @@ public class FluxCLI {
         System.out.println("COMANDOS DISPONIBLES:");
         System.out.println("  -create-code           Genera código fuente automáticamente a partir de entidades (records).");
         System.out.println("  -initialize-front-end  Inicializa la estructura frontend completa del proyecto pom.xml, jettra-config.properties, App.java y paquetes.");
+        System.out.println("  -generate-theme-project <nombre> -path <ruta> [-url-source <url>] Genera un proyecto Maven independiente para un plugin de tema.");
         System.out.println("  -help                  Muestra este menú de ayuda explicativo en la consola.\n");
         System.out.println("PARÁMETROS Y OPCIONES PARA -create-code:");
         System.out.println("  -source-record <FQN>            Especifica la ruta completa (Fully Qualified Name) de un record.");
@@ -199,7 +221,9 @@ public class FluxCLI {
         System.out.println("  1. Por un Record individual:");
         System.out.println("     ./mvn-flux -create-code -source-record com.example.entity.Person -model -properties -converter -rest -services\n");
         System.out.println("  2. Por un paquete completo de Records:");
-        System.out.println("     ./mvn-flux -create-code -source-package-record com.example.entity -model -properties -converter -rest -services");
+        System.out.println("     ./mvn-flux -create-code -source-package-record com.example.entity -model -properties -converter -rest -services\n");
+        System.out.println("  3. Generar un plugin de tema:");
+        System.out.println("     ./mvn-flux -generate-theme-project SkyRed -path ~/Descargas -url-source https://primeui.store/templates/angular/freya");
         System.out.println("====================================================================================================");
     }
 
@@ -2245,5 +2269,64 @@ public class FluxCLI {
                "                        .style(\"width: 100%; align-items: flex-start; max-width: 1200px; padding: 20px;\"));\n" +
                "    }\n" +
                "}\n";
+    }
+
+    private static void generateThemeProject(String projectName, String pathDir, String urlSource) {
+        if (pathDir != null && pathDir.startsWith("~")) {
+            pathDir = pathDir.replaceFirst("^~", System.getProperty("user.home"));
+        }
+        System.out.println("Generating Theme Project: " + projectName + " at " + pathDir);
+        if (urlSource != null) {
+            System.out.println("Using inspiration from: " + urlSource);
+        }
+        
+        Path projectPath = Paths.get(pathDir, projectName);
+        try {
+            Files.createDirectories(projectPath);
+            Files.createDirectories(projectPath.resolve("src/main/resources/META-INF"));
+            
+            // Generate pom.xml
+            String pomContent = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<project xmlns=\"http://maven.apache.org/POM/4.0.0\"\n" +
+                "         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n" +
+                "         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">\n" +
+                "    <modelVersion>4.0.0</modelVersion>\n" +
+                "    <groupId>com.jettra.theme</groupId>\n" +
+                "    <artifactId>" + projectName.toLowerCase() + "</artifactId>\n" +
+                "    <version>1.0.0</version>\n" +
+                "    <packaging>jar</packaging>\n" +
+                "    <properties>\n" +
+                "        <maven.compiler.source>25</maven.compiler.source>\n" +
+                "        <maven.compiler.target>25</maven.compiler.target>\n" +
+                "        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>\n" +
+                "    </properties>\n" +
+                "</project>\n";
+            Files.write(projectPath.resolve("pom.xml"), pomContent.getBytes(StandardCharsets.UTF_8));
+            
+            // Generate theme.json with default/red properties for SkyRed
+            String themeContent = "{\n" +
+                "  \"name\": \"" + projectName + "\",\n" +
+                "  \"primary\": \"#d32f2f\",\n" +
+                "  \"secondary\": \"#f44336\",\n" +
+                "  \"background\": \"#ffebee\",\n" +
+                "  \"surface\": \"#ffffff\",\n" +
+                "  \"onPrimary\": \"#ffffff\",\n" +
+                "  \"onSurface\": \"#212121\",\n" +
+                "  \"buttonStyle\": \"border: none; border-radius: 4px; padding: 10px 20px; font-weight: 500; cursor: pointer; transition: background 0.3s; background-color: #d32f2f; color: #ffffff;\",\n" +
+                "  \"cardStyle\": \"border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 16px; background-color: #ffffff;\",\n" +
+                "  \"containerStyle\": \"padding: 16px; border-radius: 4px;\",\n" +
+                "  \"textStyle\": \"font-size: 16px; color: #212121;\",\n" +
+                "  \"customCss\": \".top-btn-today { background-color: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }\\n.sidebar-logo { font-size: 1.5rem; font-weight: 700; color: #d32f2f; padding: 10px 15px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }\",\n" +
+                "  \"customJs\": \"console.log('Loaded theme " + projectName + "');\"\n" +
+                "}";
+            Files.write(projectPath.resolve("src/main/resources/META-INF/theme.json"), themeContent.getBytes(StandardCharsets.UTF_8));
+            
+            System.out.println("✅ Theme project '" + projectName + "' generated successfully!");
+            System.out.println("Next steps: ");
+            System.out.println("  1. cd " + projectName);
+            System.out.println("  2. mvn clean install");
+        } catch (Exception e) {
+            System.err.println("❌ Error generating theme project: " + e.getMessage());
+        }
     }
 }

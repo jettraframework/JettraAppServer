@@ -125,27 +125,32 @@ public class JettraServer {
 
         // Verify and initialize JettraSecurityDB records (JUsers, JRole, JAccreditation)
         IO.println("[JettraServer] Initializing and verifying JettraSecurityDB records (JUsers, JRole, JAccreditation)...");
-        Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
+        try {
+            Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
 
-        // Auto-create CLI scripts if they don't exist
-        generateMvnScripts();
+            // Auto-create CLI scripts if they don't exist
+            generateMvnScripts();
 
-        // Add native admin console for security database (Lazy loaded)
-        this.addHandler("/securitydb/admin", () -> new io.jettra.server.autentification.AdminConsoleHandler());
+            // Add native admin console for security database (Lazy loaded)
+            this.addHandler("/securitydb/admin", () -> new io.jettra.server.autentification.AdminConsoleHandler());
 
-        // Inicializamos componentes abstractos/ejemplo si los hay
-        IO.println("Initializing ExampleRest and ConfigInjector...");
-        io.jettra.server.test.ExampleRest example = new io.jettra.server.test.ExampleRest();
-        io.jettra.server.config.ConfigInjector.inject(example);
-        example.draw();
-        //Mostrar en consola las paginas cargadas
-        String serverConsoleShowRegisterPageTemp = io.jettra.server.config.JettraConfig.getProperty("server.consoleshowregisterpage");
+            // Inicializamos componentes abstractos/ejemplo si los hay
+            IO.println("Initializing ExampleRest and ConfigInjector...");
+            io.jettra.server.test.ExampleRest example = new io.jettra.server.test.ExampleRest();
+            io.jettra.server.config.ConfigInjector.inject(example);
+            example.draw();
+            //Mostrar en consola las paginas cargadas
+            String serverConsoleShowRegisterPageTemp = io.jettra.server.config.JettraConfig.getProperty("server.consoleshowregisterpage");
 
-        serverConsoleShowRegisterPage = Boolean.FALSE;
-        if ("true".equals(serverConsoleShowRegisterPageTemp)) {
-            serverConsoleShowRegisterPage = Boolean.TRUE;
+            serverConsoleShowRegisterPage = Boolean.FALSE;
+            if ("true".equals(serverConsoleShowRegisterPageTemp)) {
+                serverConsoleShowRegisterPage = Boolean.TRUE;
+            }
+            loadAnnotatedPages();
+        } catch (Throwable t) {
+            t.printStackTrace();
+            System.err.println("[JettraServer] Error fatal durante start(): " + t.getMessage());
         }
-        loadAnnotatedPages();
 
         try {
             int port;
@@ -261,7 +266,8 @@ public class JettraServer {
         String expiredValue = io.jettra.server.config.JettraConfig.getProperty("server.session.expired");
         int expired = (expiredValue != null && !expiredValue.isBlank()) ? Integer.parseInt(expiredValue) : 0;
         server.stop(expired);
-        if (hotReloadThread != null) {
+        server = null;
+        if (hotReloadThread != null && Thread.currentThread() != hotReloadThread) {
             hotReloadThread.interrupt();
         }
         if (autocloneManager != null) {
@@ -428,6 +434,9 @@ public class JettraServer {
     }
 
     private void startHotReloadWatcher() {
+        if (hotReloadThread != null && hotReloadThread.isAlive()) {
+            return;
+        }
         String hotreload = io.jettra.server.config.JettraConfig.getProperty("server.hotreload");
         if (!"true".equalsIgnoreCase(hotreload)) {
             return;
@@ -450,7 +459,7 @@ public class JettraServer {
                         for (WatchEvent<?> event : key.pollEvents()) {
                             IO.println("[HotReload] Change detected: " + event.context());
                             restore(); // Full restart for now
-                            return;
+                            break;
                         }
                         key.reset();
                     }
@@ -459,7 +468,7 @@ public class JettraServer {
                 // Stopped
             }
         });
-        hotReloadThread.setDaemon(true);
+        hotReloadThread.setDaemon(false);
         hotReloadThread.start();
     }
 
