@@ -12,6 +12,21 @@ import java.util.concurrent.TimeUnit;
 
 public class JettraServer {
 
+    public static void main(String[] args) {
+        if (args != null && args.length > 0) {
+            if (args[0].equals("-generate-flux-jettra-sh")) {
+                generateMvnScripts();
+                return;
+            } else if (args[0].equals("-console")) {
+                io.jettra.server.autentification.SecurityCLI.main(args);
+                return;
+            }
+        }
+        
+        JettraServer server = new JettraServer();
+        server.start();
+    }
+
     private HttpServer server;
     private boolean isRunning = false;
     private Map<String, Object> handlerRegistry = new HashMap<>(); // Can be HttpHandler, Class, or Supplier
@@ -113,7 +128,7 @@ public class JettraServer {
         Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
 
         // Auto-create CLI scripts if they don't exist
-        autoCreateMvnScripts();
+        generateMvnScripts();
 
         // Add native admin console for security database (Lazy loaded)
         this.addHandler("/securitydb/admin", () -> new io.jettra.server.autentification.AdminConsoleHandler());
@@ -547,7 +562,7 @@ public class JettraServer {
         }
     }
 
-    private void autoCreateMvnScripts() {
+    public static void generateMvnScripts() {
         try {
             Path scriptPathJettra = Paths.get("mvn-jettra");
             if (!Files.exists(scriptPathJettra)) {

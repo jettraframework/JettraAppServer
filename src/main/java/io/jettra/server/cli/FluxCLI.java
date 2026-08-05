@@ -1656,6 +1656,10 @@ public class FluxCLI {
                "        if (args != null && args.length > 0 && args[0].equals(\"-console\")) {\n" +
                "            io.jettra.server.autentification.SecurityCLI.main(args);\n" +
                "            return;\n" +
+               "        }\n" +
+               "        if (args != null && args.length > 0 && args[0].equals(\"-generate-flux-jettra-sh\")) {\n" +
+               "            io.jettra.server.JettraServer.generateMvnScripts();\n" +
+               "            return;\n" +
                "        }\n\n" +
                "        App app = new App();\n" +
                "        app.initUI();\n" +

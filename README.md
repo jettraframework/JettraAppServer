@@ -37,6 +37,15 @@ java -jar target/JettraAppServer-1.0.0-SNAPSHOT.jar
 ```
 *La terminal mostrará un aviso de "Started" indicando el puerto final en el que está escuchando.*
 
+**3. Generación de Scripts CLI (mvn-flux y mvn-jettra)**
+Puedes instruir al servidor a generar de manera manual los scripts CLI (necesarios para ejecutar comandos automáticos) pasándole el argumento `-generate-flux-jettra-sh` al ejecutar la aplicación. Esto creará los archivos `mvn-flux` y `mvn-jettra` en el directorio actual, que debe coincidir con el lugar donde se encuentra el `pom.xml` de tu proyecto. 
+
+Por ejemplo:
+```bash
+java -jar target/MyApplication.jar -generate-flux-jettra-sh
+```
+*Si tienes integrado JettraAppServer correctamente en la clase `main` de tu aplicación, este comando generará los archivos inmediatamente y finalizará la ejecución.*
+
 ---
 
 ## 📦 Uso como Dependencia (Librería)
