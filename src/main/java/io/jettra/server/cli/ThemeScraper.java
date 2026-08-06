@@ -10,9 +10,18 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 public class ThemeScraper {
 
     public static String scrapeThemeJson(String urlSource, String projectName) {
+        return scrapeThemeJson(urlSource, null, null, projectName);
+    }
+
+    public static String scrapeThemeJson(String urlSource, String cssSource, String jsSource, String projectName) {
         String primary = "#ef4444";
         String secondary = "#dc2626";
         String background = "#0f172a";
@@ -24,7 +33,70 @@ public class ThemeScraper {
         StringBuilder customCss = new StringBuilder();
         StringBuilder customJs = new StringBuilder();
         
-        if (urlSource != null && !urlSource.isEmpty()) {
+        // 1. Process CSS source if provided
+        if (cssSource != null && !cssSource.trim().isEmpty()) {
+            String cssPath = cssSource.trim();
+            if (cssPath.startsWith("~")) {
+                cssPath = cssPath.replaceFirst("^~", System.getProperty("user.home"));
+            }
+            try {
+                System.out.println("[ThemeScraper] Reading CSS from " + cssPath + " ...");
+                String css;
+                if (cssPath.startsWith("http://") || cssPath.startsWith("https://")) {
+                    HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+                    HttpRequest request = HttpRequest.newBuilder().uri(URI.create(cssPath)).GET().build();
+                    HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                    css = response.body();
+                } else {
+                    Path path = Paths.get(cssPath);
+                    if (Files.exists(path)) {
+                        css = Files.readString(path, StandardCharsets.UTF_8);
+                    } else {
+                        System.err.println("[ThemeScraper] Warning: CSS file not found at " + cssPath);
+                        css = "";
+                    }
+                }
+                css = css.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
+                customCss.append(css).append(" ");
+            } catch (Exception e) {
+                System.err.println("[ThemeScraper] Error reading css-source " + cssPath + ": " + e.getMessage());
+            }
+        }
+
+        // 2. Process JS source if provided
+        if (jsSource != null && !jsSource.trim().isEmpty()) {
+            String jsPath = jsSource.trim();
+            if (jsPath.startsWith("~")) {
+                jsPath = jsPath.replaceFirst("^~", System.getProperty("user.home"));
+            }
+            try {
+                System.out.println("[ThemeScraper] Reading JS from " + jsPath + " ...");
+                String js;
+                if (jsPath.startsWith("http://") || jsPath.startsWith("https://")) {
+                    HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+                    HttpRequest request = HttpRequest.newBuilder().uri(URI.create(jsPath)).GET().build();
+                    HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+                    js = response.body();
+                } else {
+                    Path path = Paths.get(jsPath);
+                    if (Files.exists(path)) {
+                        js = Files.readString(path, StandardCharsets.UTF_8);
+                    } else {
+                        System.err.println("[ThemeScraper] Warning: JS file not found at " + jsPath);
+                        js = "";
+                    }
+                }
+                customJs.append(js).append(" ");
+            } catch (Exception e) {
+                System.err.println("[ThemeScraper] Error reading js-source " + jsPath + ": " + e.getMessage());
+            }
+        }
+
+        // 3. Fall back to urlSource for CSS or JS if not specified directly
+        boolean needCssFromUrl = (cssSource == null || cssSource.trim().isEmpty()) && (urlSource != null && !urlSource.trim().isEmpty());
+        boolean needJsFromUrl = (jsSource == null || jsSource.trim().isEmpty()) && (urlSource != null && !urlSource.trim().isEmpty());
+
+        if (needCssFromUrl || needJsFromUrl) {
             try {
                 System.out.println("[ThemeScraper] Fetching HTML from " + urlSource + " ...");
                 HttpClient client = HttpClient.newBuilder()
@@ -39,53 +111,57 @@ public class ThemeScraper {
                 HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
                 String html = response.body();
 
-                // Extract CSS links
-                Pattern linkPattern = Pattern.compile("<link[^>]+(?:rel=[\"']stylesheet[\"'][^>]*href=[\"']([^\"']+)[\"']|href=[\"']([^\"']+)[\"'][^>]*rel=[\"']stylesheet[\"'])[^>]*>", Pattern.CASE_INSENSITIVE);
-                Matcher linkMatcher = linkPattern.matcher(html);
-                List<String> cssUrls = new ArrayList<>();
-                while (linkMatcher.find()) {
-                    String href = linkMatcher.group(1) != null ? linkMatcher.group(1) : linkMatcher.group(2);
-                    if (!href.startsWith("http") && !href.startsWith("data:")) {
-                        href = URI.create(urlSource).resolve(href).toString();
+                if (needCssFromUrl) {
+                    // Extract CSS links
+                    Pattern linkPattern = Pattern.compile("<link[^>]+(?:rel=[\"']stylesheet[\"'][^>]*href=[\"']([^\"']+)[\"']|href=[\"']([^\"']+)[\"'][^>]*rel=[\"']stylesheet[\"'])[^>]*>", Pattern.CASE_INSENSITIVE);
+                    Matcher linkMatcher = linkPattern.matcher(html);
+                    List<String> cssUrls = new ArrayList<>();
+                    while (linkMatcher.find()) {
+                        String href = linkMatcher.group(1) != null ? linkMatcher.group(1) : linkMatcher.group(2);
+                        if (!href.startsWith("http") && !href.startsWith("data:")) {
+                            href = URI.create(urlSource).resolve(href).toString();
+                        }
+                        cssUrls.add(href);
                     }
-                    cssUrls.add(href);
-                }
-                
-                // Also find <style> tags
-                Pattern stylePattern = Pattern.compile("<style[^>]*>(.*?)</style>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
-                Matcher styleMatcher = stylePattern.matcher(html);
-                while (styleMatcher.find()) {
-                    String styleContent = styleMatcher.group(1);
-                    styleContent = styleContent.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
-                    styleContent = resolveCssUrls(styleContent, urlSource);
-                    customCss.append(styleContent).append(" ");
-                }
+                    
+                    // Also find <style> tags
+                    Pattern stylePattern = Pattern.compile("<style[^>]*>(.*?)</style>", Pattern.DOTALL | Pattern.CASE_INSENSITIVE);
+                    Matcher styleMatcher = stylePattern.matcher(html);
+                    while (styleMatcher.find()) {
+                        String styleContent = styleMatcher.group(1);
+                        styleContent = styleContent.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
+                        styleContent = resolveCssUrls(styleContent, urlSource);
+                        customCss.append(styleContent).append(" ");
+                    }
 
-                // Download external CSS
-                for (String cssUrl : cssUrls) {
-                    try {
-                        System.out.println("[ThemeScraper] Downloading CSS: " + cssUrl);
-                        HttpRequest cssReq = HttpRequest.newBuilder().uri(URI.create(cssUrl)).GET().build();
-                        HttpResponse<String> cssResp = client.send(cssReq, HttpResponse.BodyHandlers.ofString());
-                        String css = cssResp.body();
-                        // Basic minification to fit in JSON
-                        css = css.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
-                        css = resolveCssUrls(css, cssUrl);
-                        customCss.append("/* From ").append(cssUrl).append(" */ ").append(css).append(" ");
-                    } catch (Exception e) {
-                        System.err.println("[ThemeScraper] Warning: Could not download CSS " + cssUrl + " - " + e.getMessage());
+                    // Download external CSS
+                    for (String cssUrl : cssUrls) {
+                        try {
+                            System.out.println("[ThemeScraper] Downloading CSS: " + cssUrl);
+                            HttpRequest cssReq = HttpRequest.newBuilder().uri(URI.create(cssUrl)).GET().build();
+                            HttpResponse<String> cssResp = client.send(cssReq, HttpResponse.BodyHandlers.ofString());
+                            String css = cssResp.body();
+                            // Basic minification to fit in JSON
+                            css = css.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ");
+                            css = resolveCssUrls(css, cssUrl);
+                            customCss.append("/* From ").append(cssUrl).append(" */ ").append(css).append(" ");
+                        } catch (Exception e) {
+                            System.err.println("[ThemeScraper] Warning: Could not download CSS " + cssUrl + " - " + e.getMessage());
+                        }
                     }
                 }
                 
-                // Extract JS scripts
-                Pattern scriptPattern = Pattern.compile("<script[^>]+src=[\"']([^\"']+)[\"'][^>]*></script>", Pattern.CASE_INSENSITIVE);
-                Matcher scriptMatcher = scriptPattern.matcher(html);
-                while (scriptMatcher.find()) {
-                    String src = scriptMatcher.group(1);
-                    if (!src.startsWith("http") && !src.startsWith("data:")) {
-                        src = URI.create(urlSource).resolve(src).toString();
+                if (needJsFromUrl) {
+                    // Extract JS scripts
+                    Pattern scriptPattern = Pattern.compile("<script[^>]+src=[\"']([^\"']+)[\"'][^>]*></script>", Pattern.CASE_INSENSITIVE);
+                    Matcher scriptMatcher = scriptPattern.matcher(html);
+                    while (scriptMatcher.find()) {
+                        String src = scriptMatcher.group(1);
+                        if (!src.startsWith("http") && !src.startsWith("data:")) {
+                            src = URI.create(urlSource).resolve(src).toString();
+                        }
+                        customJs.append("var s = document.createElement('script'); s.src = '").append(src).append("'; s.crossOrigin = 'anonymous'; document.head.appendChild(s); ");
                     }
-                    customJs.append("var s = document.createElement('script'); s.src = '").append(src).append("'; s.crossOrigin = 'anonymous'; document.head.appendChild(s); ");
                 }
                 
                 System.out.println("[ThemeScraper] Successfully extracted styles and scripts from " + urlSource);

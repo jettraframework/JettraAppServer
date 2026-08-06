@@ -165,6 +165,8 @@ public class FluxCLI {
                     String projectName = argList.get(1);
                     String pathDir = null;
                     String urlSource = null;
+                    String cssSource = null;
+                    String jsSource = null;
                     for (int j = 2; j < argList.size(); j++) {
                         if ("-path".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
                             pathDir = argList.get(j + 1);
@@ -172,6 +174,12 @@ public class FluxCLI {
                         } else if ("-url-source".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
                             urlSource = argList.get(j + 1);
                             j++; // skip next since it's the url value
+                        } else if ("-css-source".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
+                            cssSource = argList.get(j + 1);
+                            j++; // skip next since it's the css-source value
+                        } else if ("-js-source".equalsIgnoreCase(argList.get(j)) && j + 1 < argList.size()) {
+                            jsSource = argList.get(j + 1);
+                            j++; // skip next since it's the js-source value
                         } else if (argList.get(j).startsWith("http")) {
                             urlSource = argList.get(j); // fallback for missing -url-source flag
                         }
@@ -179,7 +187,7 @@ public class FluxCLI {
                     if (pathDir == null) {
                         pathDir = System.getProperty("user.dir");
                     }
-                    generateThemeProject(projectName, pathDir, urlSource);
+                    generateThemeProject(projectName, pathDir, urlSource, cssSource, jsSource);
                 } else {
                     System.out.println("Error: Missing project name for -generate-theme-project");
                 }
@@ -199,8 +207,11 @@ public class FluxCLI {
         System.out.println("COMANDOS DISPONIBLES:");
         System.out.println("  -create-code           Genera código fuente automáticamente a partir de entidades (records).");
         System.out.println("  -initialize-front-end  Inicializa la estructura frontend completa del proyecto pom.xml, jettra-config.properties, App.java y paquetes.");
-        System.out.println("  -generate-theme-project <nombre> [-path <ruta>] [-url-source <url>] Genera un proyecto Maven independiente para un plugin de tema.");
+        System.out.println("  -generate-theme-project <nombre> [-path <ruta>] [-url-source <url>] [-css-source <ruta-css>] [-js-source <ruta-js>] Genera un proyecto Maven independiente para un plugin de tema.");
         System.out.println("  -help                  Muestra este menú de ayuda explicativo en la consola.\n");
+        System.out.println("PARÁMETROS Y OPCIONES PARA -generate-theme-project:");
+        System.out.println("  -css-source <ruta-css>          Especifica la ruta del archivo CSS del tema (si se omite, se extrae de -url-source).");
+        System.out.println("  -js-source <ruta-js>            Especifica la ruta del archivo JS del tema (si se omite, se extrae de -url-source).\n");
         System.out.println("PARÁMETROS Y OPCIONES PARA -create-code:");
         System.out.println("  -source-record <FQN>            Especifica la ruta completa (Fully Qualified Name) de un record.");
         System.out.println("                                  (Ejemplo: com.example.entity.Person)");
@@ -216,7 +227,7 @@ public class FluxCLI {
         System.out.println("  -page                           Genera la página básica (<Nombre>Page.java).");
         System.out.println("  -page-crud                      Genera la página CRUD completa (<Nombre>CrudPage.java).");
         System.out.println("  -test-rest                      Genera las pruebas para los clientes REST.");
-        System.out.println("  -test-service                   Genera las pruebas para los servicios.");
+        System.out.println("  -test-service                   Genera las pruebas para las servicios.");
         System.out.println("  -test-page                      Genera las pruebas para las páginas.");
         System.out.println("  -repository                     Genera el repositorio (Interface e Impl) para un record.");
         System.out.println("  -controller                     Genera el controlador REST para un record.\n");
@@ -227,6 +238,7 @@ public class FluxCLI {
         System.out.println("     ./mvn-flux -create-code -source-package-record com.example.entity -model -properties -converter -rest -services\n");
         System.out.println("  3. Generar un plugin de tema:");
         System.out.println("     ./mvn-flux -generate-theme-project SkyRed -url-source https://primeui.store/templates/angular/freya");
+        System.out.println("     ./mvn-flux -generate-theme-project SkyRed -css-source ./styles.css -js-source ./app.js");
         System.out.println("====================================================================================================");
     }
 
@@ -2274,13 +2286,19 @@ public class FluxCLI {
                "}\n";
     }
 
-    private static void generateThemeProject(String projectName, String pathDir, String urlSource) {
+    private static void generateThemeProject(String projectName, String pathDir, String urlSource, String cssSource, String jsSource) {
         if (pathDir != null && pathDir.startsWith("~")) {
             pathDir = pathDir.replaceFirst("^~", System.getProperty("user.home"));
         }
         System.out.println("Generating Theme Project: " + projectName + " at " + pathDir);
         if (urlSource != null) {
             System.out.println("Using inspiration from: " + urlSource);
+        }
+        if (cssSource != null) {
+            System.out.println("Using CSS source: " + cssSource);
+        }
+        if (jsSource != null) {
+            System.out.println("Using JS source: " + jsSource);
         }
         
         Path projectPath = Paths.get(pathDir, projectName);
@@ -2309,8 +2327,10 @@ public class FluxCLI {
             
             // Generate theme.json with scraped properties or default properties
             String themeContent;
-            if (urlSource != null && !urlSource.isEmpty()) {
-                themeContent = ThemeScraper.scrapeThemeJson(urlSource, projectName);
+            if ((urlSource != null && !urlSource.isEmpty()) ||
+                (cssSource != null && !cssSource.isEmpty()) ||
+                (jsSource != null && !jsSource.isEmpty())) {
+                themeContent = ThemeScraper.scrapeThemeJson(urlSource, cssSource, jsSource, projectName);
             } else {
                 themeContent = "{\n" +
                     "  \"name\": \"" + projectName + "\",\n" +
