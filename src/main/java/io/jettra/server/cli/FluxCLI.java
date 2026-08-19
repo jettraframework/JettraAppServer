@@ -160,6 +160,11 @@ public class FluxCLI {
             case "initialize-front-end":
                 initializeFrontEnd();
                 break;
+            case "-initialize-backend":
+            case "--initialize-backend":
+            case "initialize-backend":
+                initializeBackend();
+                break;
             case "-generate-theme-project":
                 if (argList.size() > 1) {
                     String projectName = argList.get(1);
@@ -207,6 +212,7 @@ public class FluxCLI {
         System.out.println("COMANDOS DISPONIBLES:");
         System.out.println("  -create-code           Genera código fuente automáticamente a partir de entidades (records).");
         System.out.println("  -initialize-front-end  Inicializa la estructura frontend completa del proyecto pom.xml, jettra-config.properties, App.java y paquetes.");
+        System.out.println("  -initialize-backend    Inicializa la estructura backend completa del proyecto pom.xml, jettra-config.properties, App.java, jcf, repository y controller.");
         System.out.println("  -generate-theme-project <nombre> [-path <ruta>] [-url-source <url>] [-css-source <ruta-css>] [-js-source <ruta-js>] Genera un proyecto Maven independiente para un plugin de tema.");
         System.out.println("  -help                  Muestra este menú de ayuda explicativo en la consola.\n");
         System.out.println("PARÁMETROS Y OPCIONES PARA -generate-theme-project:");
@@ -1375,6 +1381,532 @@ public class FluxCLI {
             System.err.println("Error initializing front-end: " + e.getMessage());
             e.printStackTrace();
         }
+    }
+
+    private static void initializeBackend() {
+        try {
+            Path pomPath = Paths.get("pom.xml");
+            if (!Files.exists(pomPath)) {
+                System.err.println("Error: pom.xml not found in current directory.");
+                return;
+            }
+
+            String pomContent = new String(Files.readAllBytes(pomPath), StandardCharsets.UTF_8);
+
+            String groupId = extractXmlTag(pomContent, "groupId");
+            String artifactId = extractXmlTag(pomContent, "artifactId");
+            String version = extractXmlTag(pomContent, "version");
+            String name = extractXmlTag(pomContent, "name");
+            String packaging = extractXmlTag(pomContent, "packaging");
+
+            if (groupId == null || groupId.isEmpty()) groupId = "com.example.server";
+            if (artifactId == null || artifactId.isEmpty()) artifactId = "MiBackend";
+            if (version == null || version.isEmpty()) version = "1.0-SNAPSHOT";
+            if (name == null || name.isEmpty()) name = artifactId;
+            if (packaging == null || packaging.isEmpty()) packaging = "jar";
+
+            String mainPackage = groupId;
+            Path srcMainJava = Paths.get("src/main/java");
+            if (Files.exists(srcMainJava)) {
+                try (java.util.stream.Stream<Path> stream = Files.walk(srcMainJava)) {
+                    java.util.Optional<Path> javaFileOpt = stream.filter(p -> Files.isRegularFile(p) && p.toString().endsWith(".java")).findFirst();
+                    if (javaFileOpt.isPresent()) {
+                        String fileContent = new String(Files.readAllBytes(javaFileOpt.get()), StandardCharsets.UTF_8);
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("package\\s+([^;]+);").matcher(fileContent);
+                        if (m.find()) {
+                            mainPackage = m.group(1).trim();
+                        }
+                    } else {
+                        Path packageDir = findDeepestDirectory(srcMainJava);
+                        if (packageDir != null && !packageDir.equals(srcMainJava)) {
+                            String rel = srcMainJava.relativize(packageDir).toString().replace('/', '.').replace('\\', '.');
+                            if (!rel.isEmpty()) {
+                                mainPackage = rel;
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            System.out.println("Configuring project pom.xml...");
+            String newPom = generateFullPom(groupId, artifactId, version, name, packaging, mainPackage);
+            Files.write(pomPath, newPom.getBytes(StandardCharsets.UTF_8));
+            System.out.println("Updated pom.xml");
+
+            Path resourcesDir = Paths.get("src/main/resources");
+            Files.createDirectories(resourcesDir);
+
+            System.out.println("Generating jettra-config.properties...");
+            String jettraConfig = generateJettraConfigPropsBackend(name, artifactId);
+            Files.write(resourcesDir.resolve("jettra-config.properties"), jettraConfig.getBytes(StandardCharsets.UTF_8));
+
+            generateMessagesProperties(resourcesDir);
+
+            Path jcfPath = Paths.get("src/main/java/jcf");
+            Files.createDirectories(jcfPath);
+            System.out.println("Generating jcf.AppRole.java...");
+            Files.write(jcfPath.resolve("AppRole.java"), generateAppRoleClass().getBytes(StandardCharsets.UTF_8));
+            System.out.println("Generating jcf.systemRole.java...");
+            Files.write(jcfPath.resolve("systemRole.java"), generateSystemRoleClass().getBytes(StandardCharsets.UTF_8));
+
+            Path mainPackagePath = Paths.get("src/main/java/" + mainPackage.replace('.', '/'));
+            Files.createDirectories(mainPackagePath);
+
+            System.out.println("Generating " + mainPackage + ".App.java...");
+            Files.write(mainPackagePath.resolve("App.java"), generateBackendAppClass(mainPackage).getBytes(StandardCharsets.UTF_8));
+
+            Path entityPath = mainPackagePath.resolve("entity");
+            Files.createDirectories(entityPath);
+            System.out.println("Generating " + mainPackage + ".entity.Person.java...");
+            Files.write(entityPath.resolve("Person.java"), generatePersonEntityClassBackend(mainPackage).getBytes(StandardCharsets.UTF_8));
+
+            Path repoPath = mainPackagePath.resolve("repository");
+            Files.createDirectories(repoPath);
+            System.out.println("Generating " + mainPackage + ".repository.PersonRepository.java...");
+            Files.write(repoPath.resolve("PersonRepository.java"), generatePersonRepositoryInterface(mainPackage).getBytes(StandardCharsets.UTF_8));
+            System.out.println("Generating " + mainPackage + ".repository.PersonRepositoryImpl.java...");
+            Files.write(repoPath.resolve("PersonRepositoryImpl.java"), generatePersonRepositoryImpl(mainPackage).getBytes(StandardCharsets.UTF_8));
+
+            Path controllerPath = mainPackagePath.resolve("controller");
+            Files.createDirectories(controllerPath);
+            System.out.println("Generating " + mainPackage + ".controller.PersonController.java...");
+            Files.write(controllerPath.resolve("PersonController.java"), generatePersonControllerClass(mainPackage, artifactId).getBytes(StandardCharsets.UTF_8));
+
+            String serverPort = "9050";
+            for (String line : jettraConfig.split("\n")) {
+                if (line.startsWith("server.port=")) {
+                    serverPort = line.substring("server.port=".length()).trim();
+                    break;
+                }
+            }
+
+            Path testMainPath = Paths.get("src/test/java/" + mainPackage.replace('.', '/'));
+            Files.createDirectories(testMainPath);
+            System.out.println("Generating " + mainPackage + ".AppTest.java...");
+            Files.write(testMainPath.resolve("AppTest.java"), generateAppTestClass(mainPackage, serverPort).getBytes(StandardCharsets.UTF_8));
+            System.out.println("Generating " + mainPackage + ".TestLauncher.java...");
+            Files.write(testMainPath.resolve("TestLauncher.java"), generateTestLauncherClass(mainPackage).getBytes(StandardCharsets.UTF_8));
+
+            Path testControllerPath = testMainPath.resolve("controller");
+            Files.createDirectories(testControllerPath);
+            System.out.println("Generating " + mainPackage + ".controller.PersonControllerTest.java...");
+            Files.write(testControllerPath.resolve("PersonControllerTest.java"), generatePersonControllerTestClass(mainPackage, serverPort).getBytes(StandardCharsets.UTF_8));
+
+            System.out.println("Generating Dockerfile...");
+            Files.write(Paths.get("Dockerfile"), generateDockerfileContent(artifactId, version, serverPort).getBytes(StandardCharsets.UTF_8));
+
+            System.out.println("\nBackend initialization completed successfully!");
+
+        } catch (Exception e) {
+            System.err.println("Error initializing backend: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private static String generateJettraConfigPropsBackend(String name, String artifactId) {
+        String shortTitle = artifactId.replaceAll("[^A-Z]", "");
+        if (shortTitle.isEmpty()) {
+            shortTitle = artifactId.length() >= 2 ? artifactId.substring(0, 2).toUpperCase() : artifactId.toUpperCase();
+        }
+        String lowerArtifact = artifactId.toLowerCase();
+        return "app.title=" + name + "\n" +
+               "app.shorttitle=" + shortTitle + "\n" +
+               "server.port=9050\n" +
+               "server.contextpath=/\n" +
+               "#server.contextpath=/" + lowerArtifact + "\n" +
+               "server.compactheader=true\n" +
+               "server.session.timeout=0\n" +
+               "app.language=es\n" +
+               "app.theme=sai\n" +
+               "app.animated=false\n" +
+               "server.hotreload=true\n" +
+               "baseUri=http://localhost:9050/" + lowerArtifact + "\n" +
+               "server.typebackend=true\n" +
+               "#JWT Security\n" +
+               "server.JWT_SECRET = default_secret_key_jettra_rest_2026\n" +
+               "server.JWT_EXPIRATION=3600000\n" +
+               "server.consoleshowregisterpage=false\n" +
+               "security.roles=ADMIN,MANAGER,DEMO\n" +
+               "app.roles=ADMIN,MANAGER, USER, SXRM\n" +
+               "server.auth.exclude=/autentification,/plugin\n";
+    }
+
+    private static String generateAppRoleClass() {
+        return "package jcf;\n\n" +
+               "/**\n" +
+               " * Auto-generated by JettraAppServer from jettra-config.properties.\n" +
+               " */\n" +
+               "public enum AppRole {\n" +
+               "    ADMIN,\n" +
+               "    MANAGER,\n" +
+               "    USER;\n\n" +
+               "    public String getValue() {\n" +
+               "        return name();\n" +
+               "    }\n" +
+               "}\n";
+    }
+
+    private static String generateSystemRoleClass() {
+        return "package jcf;\n\n" +
+               "/**\n" +
+               " * Auto-generated by JettraAppServer from jettra-config.properties.\n" +
+               " */\n" +
+               "public class systemRole {\n" +
+               "    public static final String ADMIN = \"ADMIN\";\n" +
+               "    public static final String MANAGER = \"MANAGER\";\n" +
+               "    public static final String DEMO = \"DEMO\";\n" +
+               "}\n";
+    }
+
+    private static String generateBackendAppClass(String pkg) {
+        return "package " + pkg + ";\n\n" +
+               "import io.jettra.rest.server.JettraRestServer;\n" +
+               "import io.jettra.server.JettraServer;\n" +
+               "import io.jettra.server.config.ConfigInjector;\n" +
+               "import io.jettra.server.config.JettraConfigProperty;\n" +
+               "import io.jettra.server.discoverer.DiscoveredLoad;\n" +
+               "import io.jettra.server.discoverer.DiscoveredRegistry;\n" +
+               "import io.jettra.server.openapi.OpenApiHandler;\n" +
+               "import io.jettra.server.openapi.SwaggerUIHandler;\n" +
+               "import java.util.ArrayList;\n" +
+               "import java.util.List;\n\n" +
+               "@DiscoveredLoad\n" +
+               "public class App {\n\n" +
+               "    @JettraConfigProperty(name = \"app.title\")\n" +
+               "    private String appTitle;\n" +
+               "    @JettraConfigProperty(name = \"server.port\")\n" +
+               "    private String port;\n" +
+               "    @JettraConfigProperty(name = \"server.contextpath\")\n" +
+               "    private String contextpath;\n" +
+               "    public static JettraServer serverInstance;\n\n" +
+               "    public void initUI() {\n" +
+               "        ConfigInjector.inject(this);\n" +
+               "        System.out.println(\"Iniciando aplicación Backend: \" + appTitle);\n" +
+               "    }\n\n" +
+               "    public static void main(String[] args) {\n" +
+               "        if (args != null && args.length > 0 && args[0].equals(\"-console\")) {\n" +
+               "            io.jettra.server.autentification.SecurityCLI.main(args);\n" +
+               "            return;\n" +
+               "        }\n" +
+               "        if (args != null && args.length > 0 && args[0].equals(\"-generate-flux-jettra-sh\")) {\n" +
+               "            io.jettra.server.JettraServer.generateMvnScripts();\n" +
+               "            return;\n" +
+               "        }\n\n" +
+               "        App app = new App();\n" +
+               "        app.initUI();\n" +
+               "        io.jettra.flux.complex.ErrorPage.path = \"http://localhost:\" + app.port + app.contextpath;\n\n" +
+               "        System.out.println(\"Levantando servidor de enrutamiento JettraServer empotrado...\");\n" +
+               "        JettraServer server = new JettraServer();\n" +
+               "        server.setErrorPage(\"/error\");\n" +
+               "        server.addHandler(\"/error\", io.jettra.flux.complex.ErrorPage.class);\n" +
+               "        server.addHandler(\"/swagger-ui\", io.jettra.flux.complex.SwaggerUIPage.class);\n\n" +
+               "        // Cargamos los controladores descubiertos automáticamente\n" +
+               "        List<Class<?>> controllers = new ArrayList<>(DiscoveredRegistry.getDiscoveredClasses(App.class));\n\n" +
+               "        // Exponer el JSON de OpenAPI\n" +
+               "        server.addHandler(\"/openapi.json\", new OpenApiHandler(controllers));\n\n" +
+               "        // Exponer la interfaz Swagger UI\n" +
+               "        server.addHandler(\"/swagger-ui\", new SwaggerUIHandler(\"/openapi.json\"));\n\n" +
+               "        // Registrar los controladores descubiertos en JettraRestServer\n" +
+               "        JettraRestServer.registerDiscovered(server, App.class);\n\n" +
+               "        server.start();\n" +
+               "    }\n" +
+               "}\n";
+    }
+
+    private static String generatePersonEntityClassBackend(String pkg) {
+        return "package " + pkg + ".entity;\n\n" +
+               "import io.jettra.rules.validations.Email;\n" +
+               "import io.jettra.rules.validations.Min;\n" +
+               "import io.jettra.rules.validations.NotNull;\n" +
+               "import io.jettra.rules.validations.Size;\n" +
+               "import java.util.UUID;\n\n" +
+               "public record Person(\n" +
+               "        @NotNull\n" +
+               "        UUID id,\n" +
+               "        @NotNull\n" +
+               "        @Size(min = 3)\n" +
+               "        String name,\n" +
+               "        @NotNull\n" +
+               "        @Email\n" +
+               "        String email,\n" +
+               "        @NotNull\n" +
+               "        @Min(value = 0)\n" +
+               "        Integer age\n" +
+               ") {\n" +
+               "}\n";
+    }
+
+    private static String generatePersonRepositoryInterface(String pkg) {
+        return "package " + pkg + ".repository;\n\n" +
+               "import " + pkg + ".entity.Person;\n" +
+               "import java.util.List;\n" +
+               "import java.util.Optional;\n\n" +
+               "public interface PersonRepository {\n" +
+               "    List<Person> findAll();\n" +
+               "    void save(Person record);\n" +
+               "    void delete(String id);\n" +
+               "    Optional<Person> findById(String id);\n" +
+               "}\n";
+    }
+
+    private static String generatePersonRepositoryImpl(String pkg) {
+        return "package " + pkg + ".repository;\n\n" +
+               "import " + pkg + ".entity.Person;\n" +
+               "import java.util.ArrayList;\n" +
+               "import java.util.List;\n" +
+               "import java.util.Optional;\n" +
+               "import java.util.UUID;\n\n" +
+               "public class PersonRepositoryImpl implements PersonRepository {\n\n" +
+               "    private static final List<Person> db = new ArrayList<>();\n\n" +
+               "    static {\n" +
+               "        addPerson(\"Aristides\", \"ar@gmail.com\", 25);\n" +
+               "        addPerson(\"Maria\", \"maria@gmail.com\", 30);\n" +
+               "        addPerson(\"Juan\", \"juan@gmail.com\", 28);\n" +
+               "    }\n\n" +
+               "    private static void addPerson(String name, String email, Integer age) {\n" +
+               "        db.add(new Person(UUID.nameUUIDFromBytes(name.getBytes()), name, email, age));\n" +
+               "    }\n\n" +
+               "    @Override\n" +
+               "    public List<Person> findAll() {\n" +
+               "        return new ArrayList<>(db);\n" +
+               "    }\n\n" +
+               "    @Override\n" +
+               "    public void save(Person record) {\n" +
+               "        if (record.id() == null) {\n" +
+               "            record = new Person(UUID.randomUUID(), record.name(), record.email(), record.age());\n" +
+               "        }\n" +
+               "        delete(record.id().toString());\n" +
+               "        db.add(record);\n" +
+               "    }\n\n" +
+               "    @Override\n" +
+               "    public void delete(String id) {\n" +
+               "        db.removeIf(r -> r.id().toString().equals(id));\n" +
+               "    }\n\n" +
+               "    @Override\n" +
+               "    public Optional<Person> findById(String id) {\n" +
+               "        return db.stream().filter(r -> r.id().toString().equals(id)).findFirst();\n" +
+               "    }\n" +
+               "}\n";
+    }
+
+    private static String generatePersonControllerClass(String pkg, String artifactId) {
+        String endpointPath = "/plugin/demo/person";
+        return "package " + pkg + ".controller;\n\n" +
+               "import " + pkg + ".entity.Person;\n" +
+               "import " + pkg + ".repository.PersonRepository;\n" +
+               "import io.jettra.core.inject.annotation.Inject;\n" +
+               "import io.jettra.rest.annotations.Consumes;\n" +
+               "import io.jettra.rest.annotations.DELETE;\n" +
+               "import io.jettra.rest.annotations.GET;\n" +
+               "import io.jettra.rest.annotations.POST;\n" +
+               "import io.jettra.rest.annotations.PUT;\n" +
+               "import io.jettra.rest.annotations.Path;\n" +
+               "import io.jettra.rest.annotations.PathParam;\n" +
+               "import io.jettra.rest.annotations.Produces;\n" +
+               "import io.jettra.rest.annotations.Secured;\n" +
+               "import io.jettra.rest.annotations.accreditation.RolesAllowed;\n" +
+               "import io.jettra.rest.core.Response;\n" +
+               "import io.jettra.server.discoverer.Discovered;\n" +
+               "import io.jettra.server.openapi.annotations.OpenApi;\n" +
+               "import io.jettra.server.openapi.annotations.Operation;\n" +
+               "import java.util.List;\n" +
+               "import jcf.systemRole;\n\n" +
+               "@Secured\n" +
+               "@Path(\"" + endpointPath + "\")\n" +
+               "@RolesAllowed({systemRole.ADMIN})\n" +
+               "@Discovered\n" +
+               "@OpenApi(title = \"Person\", version = \"v1.0\", description = \"API for Person management\")\n" +
+               "public class PersonController {\n\n" +
+               "    @Inject\n" +
+               "    PersonRepository personRepository;\n\n" +
+               "    @GET\n" +
+               "    @Path(\"/\")\n" +
+               "    @Produces(\"application/json\")\n" +
+               "    @Operation(summary = \"findAll\", description = \"Returns all records\")\n" +
+               "    public List<Person> findAll() {\n" +
+               "        return personRepository.findAll();\n" +
+               "    }\n\n" +
+               "    @POST\n" +
+               "    @Consumes(\"application/json\")\n" +
+               "    @Produces(\"application/json\")\n" +
+               "    @Operation(summary = \"save\", description = \"Saves a new Person\")\n" +
+               "    public Response save(Person person) {\n" +
+               "        personRepository.save(person);\n" +
+               "        return Response.ok(\"{\\\"message\\\": \\\"Saved successfully\\\"}\").build();\n" +
+               "    }\n\n" +
+               "    @PUT\n" +
+               "    @Consumes(\"application/json\")\n" +
+               "    @Produces(\"application/json\")\n" +
+               "    @Operation(summary = \"update\", description = \"Updates an existing Person\")\n" +
+               "    public Response update(Person person) {\n" +
+               "        personRepository.save(person);\n" +
+               "        return Response.ok(\"{\\\"message\\\": \\\"Updated successfully\\\"}\").build();\n" +
+               "    }\n\n" +
+               "    @DELETE\n" +
+               "    @Path(\"/{id}\")\n" +
+               "    @Produces(\"application/json\")\n" +
+               "    @Operation(summary = \"delete\", description = \"Deletes a Person by id\")\n" +
+               "    public Response delete(@PathParam(\"id\") String id) {\n" +
+               "        personRepository.delete(id);\n" +
+               "        return Response.ok(\"{\\\"message\\\": \\\"Deleted successfully\\\"}\").build();\n" +
+               "    }\n" +
+               "}\n";
+    }
+
+    private static String generateAppTestClass(String pkg, String port) {
+        return "package " + pkg + ";\n\n" +
+               "import io.jettra.server.discoverer.DiscoveredLoad;\n" +
+               "import io.jettra.test.annotation.JettraTest;\n" +
+               "import io.jettra.test.annotation.RequiresRunningServer;\n" +
+               "import io.jettra.test.core.JettraAssert;\n" +
+               "import io.jettra.test.jwt.JwtTestClient;\n\n" +
+               "/**\n" +
+               " * Clase de prueba para la aplicación backend.\n" +
+               " * Demuestra la integración del framework nativo JettraTest.\n" +
+               " */\n" +
+               "@DiscoveredLoad\n" +
+               "@RequiresRunningServer\n" +
+               "public class AppTest {\n\n" +
+               "    public Integer ServerPortTest = " + port + ";\n\n" +
+               "    /**\n" +
+               "     * Prueba de Integración: Flujo completo de Autenticación JWT.\n" +
+               "     */\n" +
+               "    @JettraTest\n" +
+               "    public void testJwtAuthentication() {\n" +
+               "        JwtTestClient jwtClient = new JwtTestClient();\n" +
+               "        try {\n" +
+               "            String authPayload = \"{\\\"username\\\":\\\"admin\\\", \\\"password\\\":\\\"admin\\\"}\";\n" +
+               "            String token = jwtClient.authenticate(\"http://localhost:\" + ServerPortTest + \"/auth/login\", authPayload);\n\n" +
+               "            JettraAssert.assertNotNull(token, \"El token de autenticación no debe ser nulo\");\n" +
+               "            System.out.println(\"Token obtenido exitosamente: \" + token);\n\n" +
+               "            String response = jwtClient.getWithToken(\"http://localhost:\" + ServerPortTest + \"/autentification/jusers\");\n" +
+               "            JettraAssert.assertNotNull(response, \"La respuesta de la ruta protegida no debe ser nula\");\n" +
+               "            System.out.println(\"Datos del usuario protegidos recibidos: \" + response);\n\n" +
+               "        } catch (Exception e) {\n" +
+               "            JettraAssert.assertTrue(false, \"La prueba falló debido a una excepción: \" + e.getMessage());\n" +
+               "        }\n" +
+               "    }\n" +
+               "}\n";
+    }
+
+    private static String generateTestLauncherClass(String pkg) {
+        return "package " + pkg + ";\n\n" +
+               "import io.jettra.test.annotation.JettraTestLauncher;\n\n" +
+               "@JettraTestLauncher\n" +
+               "public class TestLauncher {\n\n" +
+               "    public void startServer(int port) {\n" +
+               "        System.out.println(\"[TestLauncher] Configurando servidor de prueba en puerto: \" + port);\n" +
+               "        System.setProperty(\"server.port\", String.valueOf(port));\n\n" +
+               "        Thread t = new Thread(() -> {\n" +
+               "            try {\n" +
+               "                App app = new App();\n" +
+               "                app.initUI();\n\n" +
+               "                System.out.println(\"[TestLauncher] Levantando servidor JettraServer...\");\n" +
+               "                App.serverInstance = new io.jettra.server.JettraServer();\n" +
+               "                App.serverInstance.setPort(port);\n" +
+               "                App.serverInstance.setErrorPage(\"/error\");\n" +
+               "                App.serverInstance.addHandler(\"/error\", io.jettra.flux.complex.ErrorPage.class);\n" +
+               "                App.serverInstance.addHandler(\"/swagger-ui\", io.jettra.flux.complex.SwaggerUIPage.class);\n\n" +
+               "                java.util.List<Class<?>> controllers = new java.util.ArrayList<>(io.jettra.server.discoverer.DiscoveredRegistry.getDiscoveredClasses(App.class));\n" +
+               "                App.serverInstance.addHandler(\"/openapi.json\", new io.jettra.server.openapi.OpenApiHandler(controllers));\n" +
+               "                App.serverInstance.addHandler(\"/swagger-ui\", new io.jettra.server.openapi.SwaggerUIHandler(\"/openapi.json\"));\n\n" +
+               "                io.jettra.rest.server.JettraRestServer.registerDiscovered(App.serverInstance, App.class);\n\n" +
+               "                App.serverInstance.start();\n" +
+               "            } catch (Exception e) {\n" +
+               "                e.printStackTrace();\n" +
+               "            }\n" +
+               "        });\n" +
+               "        t.start();\n\n" +
+               "        try {\n" +
+               "            Thread.sleep(1500);\n" +
+               "        } catch (InterruptedException e) {\n" +
+               "        }\n" +
+               "    }\n\n" +
+               "    public void stopServer() {\n" +
+               "        System.out.println(\"[TestLauncher] Deteniendo servidor de prueba...\");\n" +
+               "        if (App.serverInstance != null) {\n" +
+               "            App.serverInstance.stop();\n" +
+               "            App.serverInstance = null;\n" +
+               "        }\n" +
+               "    }\n" +
+               "}\n";
+    }
+
+    private static String generatePersonControllerTestClass(String pkg, String port) {
+        return "package " + pkg + ".controller;\n\n" +
+               "import " + pkg + ".controller.PersonController;\n" +
+               "import " + pkg + ".entity.Person;\n" +
+               "import io.jettra.core.inject.annotation.Inject;\n" +
+               "import io.jettra.rest.core.Response;\n" +
+               "import io.jettra.server.discoverer.DiscoveredLoad;\n" +
+               "import io.jettra.test.annotation.JettraTest;\n" +
+               "import io.jettra.test.annotation.RequiresRunningServer;\n" +
+               "import io.jettra.test.core.JettraAssert;\n" +
+               "import io.jettra.test.jwt.JwtTestClient;\n" +
+               "import java.util.List;\n" +
+               "import java.util.UUID;\n\n" +
+               "@DiscoveredLoad\n" +
+               "@RequiresRunningServer\n" +
+               "public class PersonControllerTest {\n\n" +
+               "    public Integer serverPortTest = " + port + ";\n" +
+               "    @Inject\n" +
+               "    PersonController personController;\n\n" +
+               "    @JettraTest\n" +
+               "    public void testInjectedControllerMethods() {\n" +
+               "        try {\n" +
+               "            // Test save()\n" +
+               "            UUID newId = UUID.randomUUID();\n" +
+               "            Person newPerson = new Person(newId, \"John Doe\", \"john@example.com\", 30);\n" +
+               "            Response saveResponse = personController.save(newPerson);\n" +
+               "            JettraAssert.assertNotNull(saveResponse, \"Response de save no debe ser null\");\n" +
+               "            JettraAssert.assertEquals(200, saveResponse.getStatus(), \"Status de save debe ser 200\");\n\n" +
+               "            // Test findAll()\n" +
+               "            List<Person> list = personController.findAll();\n" +
+               "            JettraAssert.assertNotNull(list, \"La lista de personas no debe ser nula\");\n" +
+               "            System.out.println(\"Personas desde inyeccion: \" + list);\n\n" +
+               "            // Test delete()\n" +
+               "            Response deleteResponse = personController.delete(newId.toString());\n" +
+               "            JettraAssert.assertNotNull(deleteResponse, \"Response de delete no debe ser null\");\n" +
+               "            JettraAssert.assertEquals(200, deleteResponse.getStatus(), \"Status de delete debe ser 200\");\n\n" +
+               "        } catch (Exception e) {\n" +
+               "            JettraAssert.assertTrue(false, \"Fallo en los metodos inyectados: \" + e.getMessage());\n" +
+               "        }\n" +
+               "    }\n\n" +
+               "    @JettraTest\n" +
+               "    public void testHttpEndpoints() {\n" +
+               "        JwtTestClient jwtClient = new JwtTestClient();\n" +
+               "        try {\n" +
+               "            // Autenticacion con admin/admin\n" +
+               "            String authPayload = \"{\\\"username\\\":\\\"admin\\\", \\\"password\\\":\\\"admin\\\"}\";\n" +
+               "            String token = jwtClient.authenticate(\"http://localhost:\" + serverPortTest + \"/auth/login\", authPayload);\n" +
+               "            JettraAssert.assertNotNull(token, \"El token de autenticación no debe ser nulo\");\n\n" +
+               "            String baseUrl = \"http://localhost:\" + serverPortTest + \"/plugin/demo/person\";\n\n" +
+               "            // Test POST (save)\n" +
+               "            UUID newId = UUID.randomUUID();\n" +
+               "            String postPayload = \"{\\\"id\\\":\\\"\" + newId + \"\\\", \\\"name\\\":\\\"John Http\\\", \\\"email\\\":\\\"john.http@example.com\\\", \\\"age\\\":35}\";\n" +
+               "            String postResponse = jwtClient.postWithToken(baseUrl, postPayload);\n" +
+               "            JettraAssert.assertTrue(postResponse.contains(\"Saved successfully\"), \"Response to POST should contain 'Saved successfully'. Actual: \" + postResponse);\n" +
+               "            System.out.println(\"POST respuesta: \" + postResponse);\n\n" +
+               "            // Test GET (findAll)\n" +
+               "            String getResponse = jwtClient.getWithToken(baseUrl);\n" +
+               "            JettraAssert.assertNotNull(getResponse, \"La respuesta no debe ser nula al listar personas\");\n" +
+               "            JettraAssert.assertTrue(getResponse.contains(\"John Http\"), \"La respuesta debe contener la persona recién creada\");\n" +
+               "            System.out.println(\"GET respuesta: \" + getResponse);\n\n" +
+               "            // Test PUT (update)\n" +
+               "            String putPayload = \"{\\\"id\\\":\\\"\" + newId + \"\\\", \\\"name\\\":\\\"John Http Updated\\\", \\\"email\\\":\\\"john.http@example.com\\\", \\\"age\\\":36}\";\n" +
+               "            String putResponse = jwtClient.putWithToken(baseUrl, putPayload);\n" +
+               "            JettraAssert.assertTrue(putResponse.contains(\"Updated successfully\"), \"Response to PUT should contain 'Updated successfully'. Actual: \" + putResponse);\n" +
+               "            System.out.println(\"PUT respuesta: \" + putResponse);\n\n" +
+               "            // Test DELETE\n" +
+               "            String deleteResponse = jwtClient.deleteWithToken(baseUrl + \"/\" + newId);\n" +
+               "            JettraAssert.assertTrue(deleteResponse.contains(\"Deleted successfully\"), \"Response to DELETE should contain 'Deleted successfully'. Actual: \" + deleteResponse);\n" +
+               "            System.out.println(\"DELETE respuesta: \" + deleteResponse);\n\n" +
+               "        } catch (Exception e) {\n" +
+               "            e.printStackTrace();\n" +
+               "            JettraAssert.assertTrue(false, \"La prueba falló debido a una excepción: \" + e.getMessage());\n" +
+               "        }\n" +
+               "    }\n" +
+               "}\n";
     }
 
     private static String generateDockerfileContent(String artifactId, String version, String port) {

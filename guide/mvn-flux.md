@@ -43,6 +43,32 @@ mvn archetype:generate \
   - `model/`: Genera `PersonModel.java`.
   - `page/`: Genera `PersonPage.java`.
 
+## Comando: `-initialize-backend`
+
+El comando `-initialize-backend` inicializa la estructura de un proyecto puramente backend o microservicio con APIs REST, seguridad JWT y repositorios desacoplados, sin incluir paquetes de vistas (`login`, `page`, `template`, `model`).
+
+### Flujo de Uso
+```bash
+./mvn-flux -initialize-backend
+```
+
+### ¿Qué realiza este comando?
+- **Configuración de `pom.xml`**: Configura Java 25, dependencias de `JettraAppServer`, `JettraRest`, `JettraRules`, `JettraJWT`, `JettraTest`, etc.
+- **Generación de propiedades**: Genera `jettra-config.properties` con `server.typebackend=true`, puerto `9050`, JWT y configuración de roles. Además genera `messages.properties`, `messages_es.properties` y `messages_en.properties`.
+- **Paquete `jcf`**: Genera `AppRole.java` (enum) y `systemRole.java` (constantes de roles).
+- **Clase Principal (`App.java`)**: Configura el servidor REST con OpenAPI y Swagger UI.
+- **Estructura Backend**:
+  - `entity/`: Genera `Person.java` (record con validaciones).
+  - `repository/`: Genera `PersonRepository.java` y `PersonRepositoryImpl.java`.
+  - `controller/`: Genera `PersonController.java` protegido con `@Secured` y `@RolesAllowed({systemRole.ADMIN})`.
+- **Pruebas Automatizadas (`src/test/java`)**:
+  - `AppTest.java`: Pruebas de integración JWT.
+  - `TestLauncher.java`: Lanzador de servidor de pruebas JettraTest.
+  - `controller/PersonControllerTest.java`: Pruebas de inyección y endpoints HTTP.
+- **Contenedor**: Genera `Dockerfile` optimizado.
+
+Para más detalles, consulta la [Guía de mvn-flux-initialize-backend](mvn-flux-initialize-backend.md).
+
 ## Comando: `-create-code`
 
 El comando principal de `mvn-flux` es `-create-code`, que permite la generación automática de múltiples capas de la arquitectura (Modelos, Servicios, Controladores, Repositorios, Vistas y Pruebas) a partir de tus entidades (`records`). Esto acelera significativamente el desarrollo al reducir el código repetitivo.
