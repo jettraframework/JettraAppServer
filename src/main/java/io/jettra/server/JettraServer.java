@@ -127,7 +127,7 @@ public class JettraServer {
         // Verify and initialize JettraSecurityDB records (JUsers, JRole, JAccreditation)
         IO.println("[JettraServer] Initializing and verifying JettraSecurityDB records (JUsers, JRole, JAccreditation)...");
         try {
-            Thread.startVirtualThread(() -> io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty());
+            io.jettra.server.autentification.repository.JettraSecurityDBInitializer.initializeIfEmpty();
 
             // Auto-create CLI scripts if they don't exist
             generateMvnScripts();

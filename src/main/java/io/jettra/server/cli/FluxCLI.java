@@ -1440,6 +1440,9 @@ public class FluxCLI {
             String jettraConfig = generateJettraConfigPropsBackend(name, artifactId);
             Files.write(resourcesDir.resolve("jettra-config.properties"), jettraConfig.getBytes(StandardCharsets.UTF_8));
 
+            System.out.println("Generating jettra-rest.properties...");
+            Files.write(resourcesDir.resolve("jettra-rest.properties"), "jettra.rest.base-path=\n".getBytes(StandardCharsets.UTF_8));
+
             generateMessagesProperties(resourcesDir);
 
             Path jcfPath = Paths.get("src/main/java/jcf");

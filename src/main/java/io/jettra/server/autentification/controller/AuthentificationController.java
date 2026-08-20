@@ -14,6 +14,7 @@ import io.jettra.server.autentification.entity.JRole;
 import io.jettra.server.autentification.entity.JUser;
 import io.jettra.server.autentification.repository.JCredentialRepository;
 import io.jettra.server.autentification.repository.JUserRepository;
+import io.jettra.server.config.JettraConfigProperty;
 import io.jettra.server.discoverer.Discovered;
 import io.jettra.server.openapi.annotations.OpenApi;
 import io.jettra.server.openapi.annotations.Operation;
@@ -26,21 +27,22 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Path("/autentification/auth")
-@OpenApi(title = "Library API", version = "v1.0", description = "API for Library management")
+@OpenApi(title = "Authentication API", version = "v1.0", description = "API for Authentication")
 @Discovered
 public class AuthentificationController {
 
-    private static final String JWT_SECRET = "default_secret_key_jettra_rest_2026";
-    private static final long JWT_EXPIRATION = 3600000;
+    @JettraConfigProperty(name = "server.JWT_SECRET")
+    private String JWT_SECRET;
 
-        @Inject
+    @JettraConfigProperty(name = "server.JWT_EXPIRATION")
+    private Integer JWT_EXPIRATION;
+
+    @Inject
     private JCredentialRepository jCredentialRepository;
         
-        @Inject
+    @Inject
     private JUserRepository jUserRepository;
-        
-        
-    
+
     @GET
     @Produces("application/json")
     @PermitAll
@@ -53,28 +55,31 @@ public class AuthentificationController {
             return Response.status(Response.Status.UNAUTHORIZED).entity("{\"error\":\"Invalid credentials\"}").build();
         }
 
-//        Optional<Credential> optCred =  credentialRepository.findAll().stream()
-//                .filter(c -> c.username().equals(username) && c.passwordHash().equals(password))
-//                .findFirst();
-        
-        Optional<JCredential> optCred =  jCredentialRepository.findByUsernamePassword(username, password);
-               
-        
-        
-        
+        if (jCredentialRepository == null) {
+            jCredentialRepository = new io.jettra.server.autentification.repository.JCredentialRepositoryImpl();
+        }
+        if (jUserRepository == null) {
+            jUserRepository = new io.jettra.server.autentification.repository.JUserRepositoryImpl();
+        }
+
+        Optional<JCredential> optCred = jCredentialRepository.findByUsernamePassword(username, password);
 
         if (optCred.isEmpty()) {
             return Response.status(Response.Status.UNAUTHORIZED).entity("{\"error\":\"Invalid credentials\"}").build();
         }
 
-        // Fetch User using UserRepository to validate/hydrate User
-      //   UUID uuid = UUID.fromString(id);
-        Optional<JUser> optUser = jUserRepository.findById(UUID.fromString(optCred.get().jUser().id().toString()));
-        if (optUser.isEmpty()) {
+        JUser user = optCred.get().jUser();
+        if (user == null && optCred.get().id() != null) {
+            Optional<JUser> optUser = jUserRepository.findById(optCred.get().id());
+            if (optUser.isPresent()) {
+                user = optUser.get();
+            }
+        }
+
+        if (user == null) {
             return Response.status(Response.Status.UNAUTHORIZED).entity("{\"error\":\"User not found in UserRepository\"}").build();
         }
 
-        JUser user = optUser.get();
         List<String> roleNames = new ArrayList<>();
         if (user.jRoles() != null) {
             for (JRole r : user.jRoles()) {
@@ -82,7 +87,10 @@ public class AuthentificationController {
             }
         }
 
-        JettraJWT jwt = new JettraJWT(JWT_SECRET, JWT_EXPIRATION);
+        String secret = (JWT_SECRET != null && !JWT_SECRET.isBlank()) ? JWT_SECRET : "default_secret_key_jettra_rest_2026";
+        long expiration = (JWT_EXPIRATION != null && JWT_EXPIRATION > 0) ? JWT_EXPIRATION : 3600000L;
+
+        JettraJWT jwt = new JettraJWT(secret, expiration);
         Map<String, Object> claims = new HashMap<>();
         claims.put("roles", roleNames);
         String token = "Bearer " + jwt.generateToken(claims, username);
