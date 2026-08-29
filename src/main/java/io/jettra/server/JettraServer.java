@@ -352,7 +352,14 @@ public class JettraServer {
                     }
                 }
 
-                if (!isExcluded && !path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains("/swagger-ui") && !path.contains(".")) {
+                boolean isNoLogin = false;
+                if (original instanceof Class) {
+                    isNoLogin = ((Class<?>) original).isAnnotationPresent(io.jettra.core.login.NoLoginRequired.class);
+                } else if (original != null) {
+                    isNoLogin = original.getClass().isAnnotationPresent(io.jettra.core.login.NoLoginRequired.class);
+                }
+
+                if (!isExcluded && !isNoLogin && !path.startsWith("/api/") && !path.endsWith("/login") && !path.contains("/securitydb/admin") && !path.contains("/swagger-ui") && !path.contains(".")) {
                     Object credential = JettraContext.getCurrent().get(JettraContext.Scope.SESSION, "credentialFlux");
                     if (credential == null) {
                         exchange.getResponseHeaders().set("Location", resolvePath("/login"));
