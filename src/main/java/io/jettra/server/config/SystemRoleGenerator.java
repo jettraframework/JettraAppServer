@@ -59,7 +59,13 @@ public class SystemRoleGenerator {
             if (Files.exists(Paths.get("src/main/java"))) {
                 Files.createDirectories(srcDir);
                 Path file = srcDir.resolve("systemRole.java");
-                Files.write(file, content.getBytes(StandardCharsets.UTF_8));
+                if (Files.exists(file)) {
+                    String existing = Files.readString(file, StandardCharsets.UTF_8);
+                    if (existing.equals(content)) {
+                        return; // Up to date, do not re-touch file
+                    }
+                }
+                Files.writeString(file, content, StandardCharsets.UTF_8);
                 System.out.println("[JettraAppServer] Automatically generated/updated jcf.systemRole (" + file.toAbsolutePath() + ")");
             }
         } catch (Exception e) {
