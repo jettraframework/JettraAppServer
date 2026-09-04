@@ -336,7 +336,7 @@ public class JettraServer {
                 exchange.getResponseHeaders().add("X-Content-Type-Options", "nosniff");
                 exchange.getResponseHeaders().add("X-Frame-Options", "DENY");
                 exchange.getResponseHeaders().add("X-XSS-Protection", "1; mode=block");
-                exchange.getResponseHeaders().add("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data: mediastream:; connect-src 'self' ws: wss:;");
+                exchange.getResponseHeaders().add("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; media-src 'self' blob: data: mediastream:; connect-src 'self' ws: wss: https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com;");
                 exchange.getResponseHeaders().add("Referrer-Policy", "strict-origin-when-cross-origin");
 
                 String path = exchange.getRequestURI().getPath();
