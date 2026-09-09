@@ -20,7 +20,8 @@ public class JUserRepositoryImpl implements JUserRepository {
                 user.email(), 
                 user.phone(), 
                 user.active(), 
-                user.jRoles()
+                user.jRoles(),
+                user.assignedDatabases()
             );
         }
         db.save(user.id().toString(), user);
