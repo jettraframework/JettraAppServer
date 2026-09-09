@@ -50,4 +50,49 @@ public class JUserRepositoryImpl implements JUserRepository {
     public List<JUser> search(String query) {
         return db.search(JUser.class, query);
     }
+
+    @Override
+    public Optional<JUser> findByUsername(String username) {
+        if (username == null || username.isBlank()) return Optional.empty();
+        return findAll().stream()
+                .filter(u -> username.equalsIgnoreCase(u.firstName()))
+                .findFirst();
+    }
+
+    @Override
+    public Optional<JUser> updateUser(String username, UserUpdateCommand command) {
+        if (username == null || username.isBlank() || command == null) {
+            return Optional.empty();
+        }
+        Optional<JUser> existingOpt = findByUsername(username);
+        if (existingOpt.isEmpty()) {
+            return Optional.empty();
+        }
+
+        JUser existing = existingOpt.get();
+        String email = command.email() != null ? command.email() : existing.email();
+        String phone = command.phone() != null ? command.phone() : existing.phone();
+        Boolean active = command.active() != null ? command.active() : existing.active();
+        java.util.Set<io.jettra.server.autentification.entity.JRole> roles = 
+            command.roles() != null ? command.roles() : existing.jRoles();
+        java.util.Set<String> assignedDbs = 
+            command.assignedDatabases() != null ? command.assignedDatabases() : existing.assignedDatabases();
+
+        String dbScope = (assignedDbs != null && !assignedDbs.isEmpty()) ? String.join(", ", assignedDbs) : existing.lastName();
+
+        JUser updatedUser = new JUser(
+            existing.id(),
+            existing.firstName(), // Immutable primary identity username
+            dbScope,
+            email,
+            phone,
+            active,
+            roles,
+            assignedDbs
+        );
+
+        db.save(updatedUser.id().toString(), updatedUser);
+        return Optional.of(updatedUser);
+    }
 }
+

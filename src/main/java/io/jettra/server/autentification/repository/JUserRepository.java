@@ -11,4 +11,21 @@ public interface JUserRepository {
     List<JUser> findAll();
     void delete(UUID id);
     List<JUser> search(String query);
+
+    /**
+     * Finds a user by their immutable primary identity username (firstName).
+     */
+    default Optional<JUser> findByUsername(String username) {
+        if (username == null || username.isBlank()) return Optional.empty();
+        return findAll().stream()
+                .filter(u -> username.equalsIgnoreCase(u.firstName()))
+                .findFirst();
+    }
+
+    /**
+     * Atomically updates a user's role assignments, database access scope, and profile data.
+     * Identity username remains immutable.
+     */
+    Optional<JUser> updateUser(String username, UserUpdateCommand command);
 }
+
