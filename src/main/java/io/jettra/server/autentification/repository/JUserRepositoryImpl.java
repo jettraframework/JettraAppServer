@@ -42,6 +42,10 @@ public class JUserRepositoryImpl implements JUserRepository {
     @Override
     public void delete(UUID id) {
         if (id != null) {
+            Optional<JUser> target = findById(id);
+            if (target.isPresent() && "admin".equalsIgnoreCase(target.get().firstName())) {
+                throw new io.jettra.server.autentification.exception.ImmutableAccountException("El usuario admin no puede ser revocado.");
+            }
             db.delete(JUser.class, id.toString());
         }
     }
