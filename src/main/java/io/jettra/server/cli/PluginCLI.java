@@ -779,7 +779,7 @@ public class PluginCLI {
                "            <version>${jettra.report.version}</version>\n" +
                "        </dependency>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "            <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraRules</artifactId>\n" +
                "            <version>${jettra.rules.version}</version>\n" +
                "        </dependency>\n" +
@@ -799,7 +799,7 @@ public class PluginCLI {
                "            <version>${jettra.annotation.version}</version>\n" +
                "        </dependency>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "            <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraTest</artifactId>\n" +
                "            <version>${jettra.test.version}</version>\n" +
                "        </dependency>\n" +

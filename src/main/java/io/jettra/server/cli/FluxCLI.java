@@ -2055,19 +2055,19 @@ public class FluxCLI {
                "        <skipTests>true</skipTests>\n" +
                "        <jettra.annotation.version>1.0.0-SNAPSHOT</jettra.annotation.version>\n" +
                "        <jettra.jwt.version>1.0.0-SNAPSHOT</jettra.jwt.version>\n" +
-               "        <jettra.gprc.version>1.0.0-SNAPSHOT</jettra.gprc.version>\n" +
-               "        <jettra.rules.version>1.0.0-SNAPSHOT</jettra.rules.version>\n" +
+               "        <jettra.gprc.version>1.0.0</jettra.gprc.version>\n" +
+               "        <jettra.rules.version>1.0.0</jettra.rules.version>\n" +
                "        <jettra.appserver.version>1.0.0-SNAPSHOT</jettra.appserver.version>\n" +
                "        <jettra.report.version>1.0.0-SNAPSHOT</jettra.report.version>\n" +
                "        <jettra.rest.version>1.0.0-SNAPSHOT</jettra.rest.version>\n" +
-               "        <jettra.json.version>1.0.0-SNAPSHOT</jettra.json.version>\n" +
-               "        <jettra.test.version>1.0.0-SNAPSHOT</jettra.test.version>\n" +
+               "        <jettra.json.version>1.0.0</jettra.json.version>\n" +
+               "        <jettra.test.version>1.0.0</jettra.test.version>\n" +
                "        <jettra.flux.version>1.0.0-SNAPSHOT</jettra.flux.version>\n" +
                "        <main.class.path>" + mainPackage + ".App</main.class.path>\n" +
                "    </properties>\n\n" +
                "    <dependencies>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "            <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraJSON</artifactId>\n" +
                "            <version>${jettra.json.version}</version>\n" +
                "        </dependency>\n" +
@@ -2082,12 +2082,12 @@ public class FluxCLI {
                "            <version>${jettra.report.version}</version>\n" +
                "        </dependency>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "                <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraRules</artifactId>\n" +
                "            <version>${jettra.rules.version}</version>\n" +
                "        </dependency>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "            <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraJWT</artifactId>\n" +
                "            <version>${jettra.jwt.version}</version>\n" +
                "        </dependency>\n" +
@@ -2097,12 +2097,12 @@ public class FluxCLI {
                "            <version>${jettra.rest.version}</version>\n" +
                "        </dependency>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "            <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraAnnotation</artifactId>\n" +
                "            <version>${jettra.annotation.version}</version>\n" +
                "        </dependency>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "            <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraTest</artifactId>\n" +
                "            <version>${jettra.test.version}</version>\n" +
                "        </dependency>\n" +

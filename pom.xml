@@ -12,21 +12,21 @@
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <jettra.annotation.version>1.0.0-SNAPSHOT</jettra.annotation.version>
-        <jettra.jwt.version>1.0.0-SNAPSHOT</jettra.jwt.version>
-        <jettra.gprc.version>1.0.0-SNAPSHOT</jettra.gprc.version>
-        <jettra.rules.version>1.0.0-SNAPSHOT</jettra.rules.version>
-        <jettra.json.version>1.0.0-SNAPSHOT</jettra.json.version>
+        <jettra.annotation.version>1.0.0</jettra.annotation.version>
+        <jettra.jwt.version>1.0.0</jettra.jwt.version>
+        <jettra.gprc.version>1.0.0</jettra.gprc.version>
+        <jettra.rules.version>1.0.0</jettra.rules.version>
+        <jettra.json.version>1.0.0</jettra.json.version>
     </properties>
 
     <dependencies>
     
         <!-- JSON parsing -->
         <dependency>
-            <groupId>io.jettra</groupId>
+        <groupId>com.github.jettraframework</groupId>
             <artifactId>JettraJSON</artifactId>
             <version>${jettra.json.version}</version>
-               <scope>provided</scope>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Jettra JWT Library -->
@@ -34,13 +34,13 @@
         
 
         <dependency>
-            <groupId>io.jettra</groupId>
+           <groupId>com.github.jettraframework</groupId>
             <artifactId>JettraJWT</artifactId>
             <version>${jettra.jwt.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>io.jettra</groupId>
+           	    <groupId>com.github.jettraframework</groupId>
             <artifactId>JettraGRPC</artifactId>
             <version>${jettra.gprc.version}</version>
             <scope>provided</scope>
@@ -50,13 +50,13 @@
          
          
         <dependency>
-            <groupId>io.jettra</groupId>
+              <groupId>com.github.jettraframework</groupId>
             <artifactId>JettraRules</artifactId>
             <version>${jettra.rules.version}</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>io.jettra</groupId>
+            <groupId>com.github.jettraframework</groupId>
             <artifactId>JettraAnnotation</artifactId>
             <version>${jettra.annotation.version}</version>
             <scope>provided</scope>
@@ -96,11 +96,11 @@
             </plugin>
         </plugins>
     </build>
-	<repositories>
-		<repository>
-		    <id>jitpack.io</id>
-		    <url>https://jitpack.io</url>
-		</repository>
-	</repositories>
+    <repositories>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
 
 </project>
