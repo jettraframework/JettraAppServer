@@ -774,7 +774,7 @@ public class PluginCLI {
                "            <version>${jettra.appserver.version}</version>\n" +
                "        </dependency>\n" +
                "        <dependency>\n" +
-               "            <groupId>io.jettra</groupId>\n" +
+               "            <groupId>com.github.jettraframework</groupId>\n" +
                "            <artifactId>JettraReport</artifactId>\n" +
                "            <version>${jettra.report.version}</version>\n" +
                "        </dependency>\n" +
